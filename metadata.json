@@ -1,5 +1,5 @@
 {
-  "name": "MERAKNOLOJİ TOOLS",
+  "name": "MN Tools",
   "description": "Kullanıcının yüklediği çok amaçlı ve zengin web uygulamaları ile oyunlarını tek bir merkezden güvenle ve izole bir şekilde çalıştıran modern sanal web araçları portalı.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

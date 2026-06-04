@@ -1536,6 +1536,33 @@ export default function App() {
                     </span>
                   </div>
                 </div>
+
+                {/* Gelecekteki Beklenen Özellikler Bölümü */}
+                <div className="pt-3.5 border-t border-zinc-155 dark:border-slate-800/80 mt-3">
+                  <h4 className="font-display font-extrabold text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 mb-2.5 uppercase tracking-wider font-mono">
+                    <span>🔮 Gelecekteki Beklenen Özellikler</span>
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <span className="text-[9px] text-indigo-500 mt-1">●</span>
+                      <span className="text-[11px] text-zinc-550 dark:text-zinc-400 leading-normal">
+                        <strong>Yapay Zeka Entegrasyonları:</strong> Dahili Gemini API asistanı ve akıllı kod/içerik üretim oyun araçları.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-[9px] text-indigo-500 mt-1">●</span>
+                      <span className="text-[11px] text-zinc-550 dark:text-zinc-400 leading-normal">
+                        <strong>Şifreli Bulut Eşitleme:</strong> Uygulamaların ve dosyaların farklı tarayıcı/cihazlarda tek tıklamayla eşitlenmesi.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-[9px] text-indigo-500 mt-1">●</span>
+                      <span className="text-[11px] text-zinc-550 dark:text-zinc-400 leading-normal">
+                        <strong>PWA Desteği:</strong> İnternet gerektirmeden çevrimdışı masaüstü kısa yolu oluşturma ve arka plan güncellemeleri.
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-col gap-2 mt-6">
