@@ -86,14 +86,9 @@ export default function App() {
   const [isTestingGemini, setIsTestingGemini] = useState(false);
   const [geminiTestResult, setGeminiTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Backup, Restore & Sync States
+  // Backup, Restore States
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [syncUrl, setSyncUrl] = useState(() => {
-    return localStorage.getItem('webapp_platform_sync_url') || '';
-  });
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<{ success: boolean; message: string } | null>(null);
 
   // Secure Panel Toggle states (hidden from general users)
   // 1. Is the admin mode ARMED? (clicks on lock status button, turns indicator green/red)
@@ -568,61 +563,7 @@ export default function App() {
     }
   };
 
-  // Pull backup/update from online URL (Netlify URL etc) and sync database
-  const handleOnlineSync = async () => {
-    const url = syncUrl.trim();
-    if (!url) {
-      setSyncStatus({ success: false, message: 'Lütfen geçerli bir çevrimiçi JSON güncelleme URL\'si girin.' });
-      return;
-    }
 
-    setIsSyncing(true);
-    setSyncStatus(null);
-    localStorage.setItem('webapp_platform_sync_url', url);
-
-    try {
-      let response: Response;
-      let usedProxy = false;
-
-      // Plan A: Try fetching directly first
-      try {
-        response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP Hata kodu: ${response.status}`);
-        }
-      } catch (directErr: any) {
-        // Plan B: Direct fetch failed (usually due to tight global CORS policies). Bypass via API proxy!
-        try {
-          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-          response = await fetch(proxyUrl);
-          if (!response.ok) {
-            throw new Error(`CORS Proxy de başarısız oldu: HTTP ${response.status}`);
-          }
-          usedProxy = true;
-        } catch (proxyErr: any) {
-          throw new Error(
-            `Doğrudan bağlantı ve CORS bypass köprüsü başarısız oldu. Sunucunun açık olduğundan veya dosya linkinin erişilebilir olduğundan emin olun.`
-          );
-        }
-      }
-      
-      const contentText = await response.text();
-      const result = await importAllData(contentText);
-      
-      setSyncStatus({
-        success: true,
-        message: `🔄 Senkronizasyon Başarılı! (${usedProxy ? 'CORS Köprüsü ile bypass edildi' : 'Doğrudan eşitleme'}) ${url} adresinden alınan en güncel ${result.appsCount} uygulama ve ${result.filesCount} dosya yerel sisteminiz ile başarıyla eşitlendi.`
-      });
-      await loadApplications();
-    } catch (err: any) {
-      setSyncStatus({
-        success: false,
-        message: `Senkronizasyon Başarısız! Detay: ${err.message}. Lütfen sunucu adresini kontrol edin ve linkin doğruluğundan emin olun.`
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   // Clear query logs
   const handleClearSearches = () => {
@@ -973,140 +914,41 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Data Backup & Cloud Sync Interface */}
-                  <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm animate-fade-in">
-                    <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2 mb-2">
+                  {/* Data Backup Interface */}
+                  <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm animate-fade-in max-w-2xl mx-auto w-full">
+                    <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2 mb-2 justify-center">
                       <Database className="h-5 w-5 text-indigo-500" />
-                      Veri Yedekleme ve Senkronizasyon
+                      Veri Yedekleme ve Geri Yükleme
                     </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-6">
-                      Tüm yüklü uygulamalarınızı ve dosylarınızı yedekleyip Netlify sunucuları veya diğer cihazlar arasında senkronize edin.
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-6 text-center">
+                      Platformdaki tüm yüklü uygulama kartlarını ve sanal dosyaları tek tıklamayla JSON yedek dosyası olarak bilgisayarınıza yedekleyin veya geri yükleyin.
                     </p>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      {/* Plan A: Local Backup & Restore */}
-                      <div className="rounded-xl border border-zinc-150 dark:border-slate-800/60 bg-zinc-50/50 dark:bg-slate-950/40 p-4 flex flex-col justify-between">
-                        <div>
-                          <h4 className="text-xs font-bold text-zinc-800 dark:text-slate-200 uppercase tracking-wider font-mono flex items-center gap-1.5 mb-2">
-                            <Download className="h-3.5 w-3.5 text-indigo-400" />
-                            Geri Yükleme ve Yedekleme (Dosya)
-                          </h4>
-                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4">
-                            Platformdaki tüm uygulama kartlarını ve IndexedDB sanal dosyalarını tek bir JSON yedek belgesi olarak bilgisayarınıza indirin veya geri yükleyin.
-                          </p>
-                        </div>
+                    <div className="rounded-xl border border-zinc-150 dark:border-slate-800/60 bg-zinc-50/50 dark:bg-slate-950/40 p-5 flex flex-col items-center">
+                      <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
+                        <button
+                          type="button"
+                          disabled={isExporting}
+                          onClick={handleExportBackup}
+                          className="flex-1 max-w-xs flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-550 disabled:bg-zinc-300 text-white px-5 py-3 text-xs font-bold transition-all cursor-pointer font-mono active:scale-98"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          {isExporting ? 'Yedek Alınıyor...' : 'Platformu Yedekle (.json)'}
+                        </button>
 
-                        <div className="flex flex-col gap-2.5 mt-2">
-                          <button
-                            type="button"
-                            disabled={isExporting}
-                            onClick={handleExportBackup}
-                            className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-550 disabled:bg-zinc-300 text-white px-4 py-2 text-xs font-bold transition-all cursor-pointer font-mono active:scale-98"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            {isExporting ? 'Yedek Alınıyor...' : 'Platformu Yedekle (.json)'}
-                          </button>
-
-                          <label className="w-full flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:bg-zinc-100 dark:hover:bg-slate-900 text-zinc-700 dark:text-slate-300 px-4 py-2 text-xs font-bold transition-all cursor-pointer font-mono text-center active:scale-98">
-                            <Upload className="h-3.5 w-3.5 text-slate-400" />
-                            <span>{isImporting ? 'Yükleniyor...' : 'Yedekten Geri Yükle...'}</span>
-                            <input
-                              type="file"
-                              accept=".json"
-                              onChange={handleImportBackup}
-                              disabled={isImporting}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* Plan B: Online Backup/Sync URL Update */}
-                      <div className="rounded-xl border border-zinc-150 dark:border-slate-800/60 bg-zinc-50/50 dark:bg-slate-950/40 p-4 flex flex-col justify-between">
-                        <div>
-                          <h4 className="text-xs font-bold text-zinc-800 dark:text-slate-200 uppercase tracking-wider font-mono flex items-center gap-1.5 mb-2">
-                            <RefreshCw className="h-3.5 w-3.5 text-blue-400" />
-                            Canlı URL / Netlify Senkronizasyonu
-                          </h4>
-                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4">
-                            Uygulamalarınızın yer aldığı bir senkronizasyon dosyasını (örneğin Netlify'da yayınladığınız yedek belgesini) buraya bağlayarak platformu tek tuşla internet üzerinden güncelleyebilirsiniz.
-                          </p>
-                        </div>
-
-                        <div className="flex flex-col gap-3 mt-2">
-                          <div>
-                            <label className="text-[9px] font-bold text-zinc-400 uppercase font-mono block mb-1">CORS Uyumlu JSON Güncelleme URL'si</label>
-                            <input
-                              type="url"
-                              value={syncUrl}
-                              onChange={(e) => setSyncUrl(e.target.value)}
-                              placeholder="https://platformum.netlify.app/yedek.json"
-                              className="w-full rounded-xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-550 font-mono"
-                            />
-                          </div>
-
-                          <button
-                            type="button"
-                            disabled={isSyncing}
-                            onClick={handleOnlineSync}
-                            className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-550 disabled:bg-zinc-300 text-white px-4 py-2.5 text-xs font-bold transition-all cursor-pointer font-mono active:scale-98"
-                          >
-                            {isSyncing ? (
-                              <>
-                                <RefreshCw className="h-3.5 w-3.5 animate-spin text-white" />
-                                Güncelleniyor...
-                              </>
-                            ) : (
-                              <>
-                                <RefreshCw className="h-3.5 w-3.5 text-white" />
-                                Çevrimiçi Eşitle / Güncelle
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Plan C: Netlify Drop / Zip Deployment Helper */}
-                      <div className="rounded-xl border border-zinc-150 dark:border-slate-800/60 bg-zinc-50/50 dark:bg-slate-950/40 p-4 flex flex-col justify-between">
-                        <div>
-                          <h4 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider font-mono flex items-center gap-1.5 mb-2">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            Netlify Hızlı Güncelleme (.zip)
-                          </h4>
-                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-3">
-                            GitHub veya kod ortamlarıyla uğraşmadan, görsel ve işlevsel tüm site güncellemelerini Netlify sitenize tek adımda yükleyin!
-                          </p>
-                          <ul className="text-[10px] text-zinc-600 dark:text-zinc-400 leading-normal space-y-1 mb-4 list-decimal list-inside font-mono">
-                            <li>Aşağıdaki yeşil butona basarak <span className="font-bold text-zinc-850 dark:text-white">netlify-dist.zip</span> dosyasını indir.</li>
-                            <li>İndirdiğin bu zip dosyasını klasöre <span className="text-amber-600 dark:text-amber-500 font-bold">AÇMA / ÇIKARMA</span>!</li>
-                            <li>Dosyayı doğrudan sürükleyip Netlify panelindeki <span className="underline">Üretim Dağıtımları</span> (Production Deployments) dairesine bırak. Saniyeler içinde siten güncellenecektir!</li>
-                          </ul>
-                        </div>
-
-                        <div className="mt-2">
-                          <a
-                            href="/netlify-dist.zip"
-                            download="netlify-dist.zip"
-                            className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-550 text-white px-4 py-2.5 text-xs font-bold transition-all cursor-pointer font-mono active:scale-98 text-center"
-                          >
-                            <Download className="h-3.5 w-3.5 text-white" />
-                            Netlify Dağıtım Paketini İndir (.zip)
-                          </a>
-                        </div>
+                        <label className="flex-1 max-w-xs flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:bg-zinc-100 dark:hover:bg-slate-900 text-zinc-700 dark:text-slate-300 px-5 py-3 text-xs font-bold transition-all cursor-pointer font-mono text-center active:scale-98">
+                          <Upload className="h-3.5 w-3.5 text-slate-400" />
+                          <span>{isImporting ? 'Yükleniyor...' : 'Yedekten Geri Yükle...'}</span>
+                          <input
+                            type="file"
+                            accept=".json"
+                            onChange={handleImportBackup}
+                            disabled={isImporting}
+                            className="hidden"
+                          />
+                        </label>
                       </div>
                     </div>
-
-                    {/* Network / CORS / Sync Status Messages */}
-                    {syncStatus && (
-                      <div className={`mt-4 flex items-start gap-2.5 rounded-xl border p-4 text-xs font-mono leading-relaxed ${
-                        syncStatus.success 
-                          ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
-                          : 'bg-amber-500/5 border-amber-500/10 text-amber-600 dark:text-amber-400'
-                      }`}>
-                        <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                        <span>{syncStatus.message}</span>
-                      </div>
-                    )}
                   </div>
                 </>
               ) : (
