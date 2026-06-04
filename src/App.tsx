@@ -269,13 +269,20 @@ export default function App() {
         e.preventDefault();
         setButtonPressState('basıldı');
         
-        // Toggle the visual panels
-        setIsAdminRevealed((prev) => !prev);
-
-        // Auto reset press animation feedback after 0.4 seconds
-        setTimeout(() => {
-          setButtonPressState('serbest');
-        }, 400);
+        // Toggle the visual panels safely (only lock/hide from keyboard shortcut is allowed, unlocking requires PIN pad '2016' entry)
+        if (isAdminRevealed) {
+          setIsAdminRevealed(false);
+          // Auto reset press animation feedback after 0.4 seconds
+          setTimeout(() => {
+            setButtonPressState('serbest');
+          }, 400);
+        } else {
+          // Play mistake noise and notify that pin keyboard must be utilized
+          playKeySound('error');
+          setTimeout(() => {
+            setButtonPressState('serbest');
+          }, 400);
+        }
       }
     };
 
@@ -413,6 +420,12 @@ export default function App() {
 
   // Delete Web App
   const handleDeleteApp = async (id: string) => {
+    // SECURITY GUARD: Direct protection of database writes
+    if (!isAdminArmed || !isAdminRevealed) {
+      alert("Güvenlik Hatası: Yetkisiz erişim! Uygulama silmek için lütfen önce Ayarlar sayfasından Güvenli Sanal Kasa Şifresini girerek kilidi açın.");
+      return;
+    }
+
     const target = apps.find(a => a.id === id);
     if (!target) return;
 
@@ -445,6 +458,12 @@ export default function App() {
     meta: Omit<WebApp, 'id' | 'uploadedAt' | 'isFavorite' | 'lastOpenedAt' | 'sizeBytes'>,
     files: { path: string; content: Blob; mimeType: string }[]
   ) => {
+    // SECURITY GUARD: Direct protection of database writes
+    if (!isAdminArmed || !isAdminRevealed) {
+      alert("Güvenlik Hatası: Yetkisiz erişim! Yeni uygulama yüklemek için lütfen önce Ayarlar sayfasından Güvenli Sanal Kasa Şifresini girerek kilidi açın.");
+      return;
+    }
+
     const id = 'app-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now();
     const sizeBytes = files.reduce((acc, f) => acc + f.content.size, 0);
 
@@ -468,6 +487,12 @@ export default function App() {
 
   // Trigger save on edit
   const handleSaveEditApp = async (updated: WebApp) => {
+    // SECURITY GUARD: Direct protection of database writes
+    if (!isAdminArmed || !isAdminRevealed) {
+      alert("Güvenlik Hatası: Yetkisiz erişim! Uygulamaları düzenlemek için lütfen önce Ayarlar sayfasından Güvenli Sanal Kasa Şifresini girerek kilidi açın.");
+      return;
+    }
+
     try {
       await updateAppMetadata(updated);
       setIsEditOpen(false);
@@ -1096,7 +1121,7 @@ export default function App() {
             {/* 1. Large search controls and Quick additions hub */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
               {/* Search Block */}
-              <div className="lg:col-span-4 relative">
+              <div className={`${isAdminArmed && isAdminRevealed ? "lg:col-span-4" : "lg:col-span-5"} relative`}>
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-zinc-400">
                   <Search className="h-5 w-5" />
                 </div>
@@ -1118,14 +1143,16 @@ export default function App() {
               </div>
 
               {/* Upload addition launcher element */}
-              <button
-                id="header-upload-btn"
-                onClick={() => setIsUploadOpen(true)}
-                className="lg:col-span-1 flex items-center justify-center gap-2.5 rounded-2xl bg-blue-600 px-5 py-3.5 text-sm font-black text-white hover:bg-blue-550 hover:shadow-lg hover:shadow-blue-600/15 transition-all shadow active:scale-[0.98] cursor-pointer"
-              >
-                <Plus className="h-4.5 w-4.5" />
-                Uygulama Ekle
-              </button>
+              {isAdminArmed && isAdminRevealed && (
+                <button
+                  id="header-upload-btn"
+                  onClick={() => setIsUploadOpen(true)}
+                  className="lg:col-span-1 flex items-center justify-center gap-2.5 rounded-2xl bg-blue-600 px-5 py-3.5 text-sm font-black text-white hover:bg-blue-550 hover:shadow-lg hover:shadow-blue-600/15 transition-all shadow active:scale-[0.98] cursor-pointer animate-fade-in"
+                >
+                  <Plus className="h-4.5 w-4.5" />
+                  Uygulama Ekle
+                </button>
+              )}
             </div>
 
             {/* 2. Recent Searches (Arama Geçmişi Badges) */}
@@ -1234,7 +1261,6 @@ export default function App() {
                 ))}
               </div>
             ) : (
-              
               /* PRECISE VISUAL EMPTY STATE (Turkish) */
               <div 
                 id="empty-platform-container"
@@ -1242,29 +1268,48 @@ export default function App() {
               >
                 {apps.length === 0 ? (
                   // Initial Platform Empty state
-                  <>
-                    <div 
-                      onClick={() => setIsUploadOpen(true)}
-                      className="group flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-500/25 cursor-pointer shadow-xl shadow-blue-500/5 transition-all duration-300 transform hover:scale-105 hover:rotate-90 animate-bounce"
-                    >
-                      <Plus className="h-8 w-8" />
-                    </div>
-                    <h3 className="mt-6 font-display text-lg font-black tracking-tight text-zinc-900 dark:text-white">
-                      Platformunuz Tamamen Boş
-                    </h3>
-                    <p className="mt-2 max-w-md text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed font-medium">
-                      Platform ilk açıldığında tamamen boş gelecek şekilde tasarlanmıştır. Çevrimdışı çalışabilen kendi web uygulamalarınızı veya oyunlarınızı (.html, .css, .js) hemen yükleyin!
-                    </p>
-                    <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                      <button
+                  isAdminArmed && isAdminRevealed ? (
+                    <>
+                      <div 
                         onClick={() => setIsUploadOpen(true)}
-                        className="flex items-center gap-2 rounded-xl bg-blue-600 border border-transparent hover:bg-blue-550 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/10 transition-all cursor-pointer"
+                        className="group flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-500/25 cursor-pointer shadow-xl shadow-blue-500/5 transition-all duration-300 transform hover:scale-105 hover:rotate-90 animate-bounce"
                       >
-                        <Plus className="h-4.5 w-4.5" />
-                        İlk Uygulamayı Ekle
-                      </button>
-                    </div>
-                  </>
+                        <Plus className="h-8 w-8" />
+                      </div>
+                      <h3 className="mt-6 font-display text-lg font-black tracking-tight text-zinc-900 dark:text-white">
+                        Platformunuz Tamamen Boş
+                      </h3>
+                      <p className="mt-2 max-w-md text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed font-medium">
+                        Platform ilk açıldığında tamamen boş gelecek şekilde tasarlanmıştır. Çevrimdışı çalışabilen kendi web uygulamalarınızı veya oyunlarınızı (.html, .css, .js) hemen yükleyin!
+                      </p>
+                      <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                        <button
+                          onClick={() => setIsUploadOpen(true)}
+                          className="flex items-center gap-2 rounded-xl bg-blue-600 border border-transparent hover:bg-blue-550 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/10 transition-all cursor-pointer"
+                        >
+                          <Plus className="h-4.5 w-4.5" />
+                          İlk Uygulamayı Ekle
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div 
+                        className="flex h-20 w-20 items-center justify-center rounded-3xl bg-zinc-200/30 dark:bg-slate-800/20 text-zinc-400 dark:text-zinc-500 border border-zinc-350/10 dark:border-slate-800/40 shadow-inner"
+                      >
+                        <Lock className="h-8 w-8" />
+                      </div>
+                      <h3 className="mt-6 font-display text-lg font-black tracking-tight text-zinc-900 dark:text-white">
+                        Platform Henüz Boş
+                      </h3>
+                      <p className="mt-2 max-w-md text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed font-medium">
+                        Sistem yöneticisi henüz herhangi bir application veya oyun eklememiştir ya da düzenleme modu kilitlidir.
+                      </p>
+                      <p className="mt-1 max-w-md text-xs text-zinc-400 dark:text-zinc-500 leading-normal font-mono">
+                        Yönetici iseniz, lütfen <strong>Ayarlar &rarr; Güvenli Sanal Kasa</strong> ekranından 4 haneli şifrenizi girerek yetki kilidini kaldırın.
+                      </p>
+                    </>
+                  )
                 ) : (
                   // Filtering / Seach state with nothing matching
                   <>
