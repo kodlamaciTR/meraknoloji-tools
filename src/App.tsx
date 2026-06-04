@@ -612,7 +612,7 @@ export default function App() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-display text-2xl font-black tracking-tight text-zinc-900 dark:text-white">MERAKNOLOJİ TOOLS</h1>
+                <h1 className="font-display text-2xl font-black tracking-tight text-zinc-900 dark:text-white">MN Tools</h1>
                 <button
                   type="button"
                   onClick={() => setShowUpdateModal(true)}
@@ -1374,7 +1374,7 @@ export default function App() {
                   <div>
                     <strong className="text-zinc-800 dark:text-zinc-100 block text-xs">🚀 JSON Eşitleme ve v3 Stabilizasyonu</strong>
                     <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block mt-0.5 leading-normal">
-                      Altyapıda senkronizasyon kontrolleri güçlendirildi ve Meraknoloji Tools v3 sürüm yükseltme hazırlıkları tamamlandı.
+                      Altyapıda senkronizasyon kontrolleri güçlendirildi ve MN Tools v3 sürüm yükseltme hazırlıkları tamamlandı.
                     </span>
                   </div>
                 </div>

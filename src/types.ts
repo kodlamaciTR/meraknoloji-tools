@@ -41,9 +41,13 @@ export const CATEGORIES = [
   'Verimlilik',
   'Geliştirici Araçları',
   'İçerik Üretici Araçları',
+  'Yapay Zeka Araçları',
+  'Oyunlaştırma & Motivasyon',
+  'Güvenlik & Sistem',
+  'Tasarım & Görsel Araçlar',
+  'Eğitim & Kişisel Gelişim',
   'Video Araçları',
   'Ses Araçları',
-  'Yapay Zeka Araçları',
   'Oyunlar',
   'Diğer'
 ] as const;

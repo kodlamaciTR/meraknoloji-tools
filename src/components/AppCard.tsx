@@ -52,12 +52,20 @@ export default function AppCard({
         return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
       case 'İçerik Üretici Araçları':
         return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+      case 'Yapay Zeka Araçları':
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      case 'Oyunlaştırma & Motivasyon':
+        return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+      case 'Güvenlik & Sistem':
+        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+      case 'Tasarım & Görsel Araçlar':
+        return 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20';
+      case 'Eğitim & Kişisel Gelişim':
+        return 'bg-teal-500/10 text-teal-400 border-teal-500/20';
       case 'Video Araçları':
         return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
       case 'Ses Araçları':
         return 'bg-violet-500/10 text-violet-400 border-violet-500/20';
-      case 'Yapay Zeka Araçları':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
       case 'Oyunlar':
         return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
       default:
