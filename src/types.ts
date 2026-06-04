@@ -39,6 +39,7 @@ export interface AppSettings {
 
 export const CATEGORIES = [
   'Verimlilik',
+  'Zaman Yönetimi / Üretkenlik',
   'Geliştirici Araçları',
   'İçerik Üretici Araçları',
   'Yapay Zeka Araçları',
@@ -46,6 +47,8 @@ export const CATEGORIES = [
   'Güvenlik & Sistem',
   'Tasarım & Görsel Araçlar',
   'Eğitim & Kişisel Gelişim',
+  'Eğitim / Kültür',
+  'Eğitim / Üretkenlik',
   'Video Araçları',
   'Ses Araçları',
   'Oyunlar',
