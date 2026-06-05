@@ -34,6 +34,46 @@ export default function AppRunner({ app, onClose }: AppRunnerProps) {
     }
   }, []);
 
+  // Listen for downloads from the iframe virtual app proxy
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'VIRTUAL_APP_DOWNLOAD') {
+        const { filename, dataUrl } = event.data;
+        console.log('[Runner Proxy] Dowloading file from iframe message payload:', filename);
+        
+        try {
+          const link = document.createElement('a');
+          link.href = dataUrl;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } catch (err) {
+          console.error('[Runner Proxy] Download trigger error:', err);
+        }
+      } else if (event.data && event.data.type === 'VIRTUAL_APP_DOWNLOAD_URL') {
+        const { filename, url } = event.data;
+        console.log('[Runner Proxy] Downloading URL from iframe message payload:', filename, url);
+        
+        try {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } catch (err) {
+          console.error('[Runner Proxy] Direct URL download trigger error:', err);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
   // Reload iframe with a fresh cache-buster token
   const handleReload = () => {
     setIsLoading(true);

@@ -65,10 +65,10 @@ function loadFileAndRespond(db, appId, filePath, resolve) {
       if (mimeType.startsWith('text/html')) {
         fileRecord.content.text()
           .then((text) => {
-            const scriptToInject = `\n<!-- PWA SW & Manifest Platform Shield -->
+            const scriptToInject = `\n<!-- PWA SW & Manifest Platform Shield & IFrame Download Proxy -->
 <script id="pwa-interceptor">
   (function() {
-    console.log('[Platform] Shielding virtual env from service worker hijack to keep assets pipeline active.');
+    console.log('[Platform] Shielding virtual env and proxing sandbox downloads.');
     if ('serviceWorker' in navigator) {
       const mockRegistration = {
         scope: window.location.origin + window.location.pathname,
@@ -118,6 +118,59 @@ function loadFileAndRespond(db, appId, filePath, resolve) {
         navigator.serviceWorker.getRegistrations = mockServiceWorkerContainer.getRegistrations;
       }
     }
+
+    // Intercept download events for sandbox iframe compatibility
+    function triggerParentDownload(href, filename) {
+      if (!href) return;
+      console.log('[Platform Proxy] Intercepted download trigger:', filename, href);
+      
+      let resolvedUrl = href;
+      if (!href.startsWith('blob:') && !href.startsWith('data:') && !href.startsWith('http:') && !href.startsWith('https:')) {
+        resolvedUrl = new URL(href, window.location.href).href;
+      }
+      
+      fetch(resolvedUrl)
+        .then(response => response.blob())
+        .then(blob => {
+          const reader = new FileReader();
+          reader.onload = function() {
+            window.parent.postMessage({
+              type: 'VIRTUAL_APP_DOWNLOAD',
+              filename: filename || 'download',
+              dataUrl: reader.result
+            }, '*');
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch(err => {
+          console.error('[Platform Proxy] Fetch download data failed, sending direct URL message:', err);
+          window.parent.postMessage({
+            type: 'VIRTUAL_APP_DOWNLOAD_URL',
+            filename: filename || 'download',
+            url: resolvedUrl
+          }, '*');
+        });
+    }
+
+    // Live click intercept
+    document.addEventListener('click', function(e) {
+      const a = e.target.closest('a');
+      if (a && a.hasAttribute('download')) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerParentDownload(a.href, a.getAttribute('download'));
+      }
+    }, true);
+
+    // Override prototype anchor click
+    const originalClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function() {
+      if (this.hasAttribute('download')) {
+        triggerParentDownload(this.href, this.getAttribute('download'));
+      } else {
+        originalClick.apply(this, arguments);
+      }
+    };
   })();
 </script>\n`;
             
