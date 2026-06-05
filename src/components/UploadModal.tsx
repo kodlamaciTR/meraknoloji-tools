@@ -48,49 +48,99 @@ export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // Handle files parsing
-  const handleFilesSelected = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setErrorMsg('');
+  // Recursive file-system entry traversal helper for directory drops
+  const getFilesFromDataTransfer = async (items: DataTransferItemList): Promise<{ path: string; file: File }[]> => {
+    const list: { path: string; file: File }[] = [];
 
-    const fileList = Array.from(files);
-    const parsed = fileList
-      .map((f) => {
-        let path = f.name.trim();
+    const traverse = async (entry: any, path: string = '') => {
+      if (entry.isFile) {
+        try {
+          const file = await new Promise<File>((resolve, reject) => {
+            entry.file(resolve, reject);
+          });
+          list.push({
+            path: path + file.name,
+            file: file
+          });
+        } catch (e) {
+          console.error('[SW Tracker] Entry read error:', e);
+        }
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const readEntries = async (): Promise<any[]> => {
+          return new Promise((resolve) => {
+            reader.readEntries(resolve, () => resolve([]));
+          });
+        };
+
+        let chunk = await readEntries();
+        const allEntries = [...chunk];
+        // Read full directory content in chunks (since browser readers might cap results at 100/call)
+        while (chunk.length > 0) {
+          chunk = await readEntries();
+          allEntries.push(...chunk);
+        }
+
+        for (const child of allEntries) {
+          await traverse(child, path + entry.name + '/');
+        }
+      }
+    };
+
+    const promises: Promise<void>[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const entry = item.webkitGetAsEntry();
+        if (entry) {
+          promises.push(traverse(entry));
+        }
+      }
+    }
+
+    await Promise.all(promises);
+    return list;
+  };
+
+  // Centralized, unified parsing for both folder inputs, single-file lists, and folder drag-and-drop tethers
+  const processParsedFiles = (parsedEntries: { path: string; file: File }[]) => {
+    const parsed = parsedEntries
+      .map((entry) => {
+        let path = entry.path.trim();
         // Normalize backslashes to forward slashes for cross-platform compatibility
         // also remove any leading/trailing slashes to ensure splitting behaves perfectly
-        const relPath = f.webkitRelativePath 
-          ? f.webkitRelativePath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').trim() 
-          : '';
+        path = path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').trim();
         
-        // Strip top level directory if uploading as folder structure
-        if (relPath) {
-          const parts = relPath.split('/');
-          if (parts.length > 1) {
-            path = parts.slice(1).join('/').trim();
-          } else {
-            path = relPath;
-          }
+        // Strip top level directory if uploading as folder structure (path contains at least one slash)
+        const parts = path.split('/');
+        if (parts.length > 1) {
+          path = parts.slice(1).join('/').trim();
         }
-        return { path, file: f };
+
+        return { path, file: entry.file };
       })
-      .filter((item) => item.path !== ''); // Filter out empty strings or directory markers
+      .filter((item) => item.path !== '' && item.file.size > 0); // Filter out empty directory representations
+
+    if (parsed.length === 0) {
+      setErrorMsg('Geçerli hiçbir dosya algılanamadı.');
+      return;
+    }
 
     // Merge or set files (overwriting for fresh uploads)
     setFilesToUpload(parsed);
 
     // Auto guess app name based on first file name or folder upload name
-    if (!appName && fileList.length > 0) {
-      if (fItemWithWebkitPath(fileList)) {
-        const rootDir = fileList[0].webkitRelativePath.split('/')[0];
-        // Clean up dashes or underscores in folder name
-        setAppName(cleanName(rootDir));
+    if (!appName && parsedEntries.length > 0) {
+      const firstEntry = parsedEntries[0];
+      const firstParts = firstEntry.path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').split('/');
+      if (firstParts.length > 1 && firstParts[0]) {
+        setAppName(cleanName(firstParts[0]));
       } else {
         const firstHtml = parsed.find(p => isHtmlFile(p.path));
         if (firstHtml) {
           setAppName(cleanName(firstHtml.path.replace(/\.[^/.]+$/, "")));
         } else {
-          setAppName(cleanName(fileList[0].name.replace(/\.[^/.]+$/, "")));
+          setAppName(cleanName(firstEntry.file.name.replace(/\.[^/.]+$/, "")));
         }
       }
     }
@@ -126,17 +176,36 @@ export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
     setEntryPoint(findPriorityEntryPoint());
 
     // Auto-categorize based on folder/file names
-    const fullContentString = (fileList[0].webkitRelativePath || fileList[0].name).toLowerCase();
-    if (fullContentString.includes('game') || fullContentString.includes('oyun') || fullContentString.includes('play') || fullContentString.includes('retro')) {
+    const pathSample = parsedEntries[0].path.toLowerCase();
+    if (pathSample.includes('game') || pathSample.includes('oyun') || pathSample.includes('play') || pathSample.includes('retro')) {
       setAppCategory('Oyunlar');
       setAppIcon('🎮');
-    } else if (fullContentString.includes('ai') || fullContentString.includes('gemini') || fullContentString.includes('artificial')) {
+    } else if (pathSample.includes('ai') || pathSample.includes('gemini') || pathSample.includes('artificial')) {
       setAppCategory('Yapay Zeka Araçları');
       setAppIcon('🤖');
-    } else if (fullContentString.includes('dev') || fullContentString.includes('code') || fullContentString.includes('tool')) {
+    } else if (pathSample.includes('dev') || pathSample.includes('code') || pathSample.includes('tool')) {
       setAppCategory('Geliştirici Araçları');
       setAppIcon('🛠️');
     }
+  };
+
+  // Handle files parsing from input select elements
+  const handleFilesSelected = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setErrorMsg('');
+
+    const fileList = Array.from(files);
+    const parsedEntries = fileList.map((f) => {
+      const relPath = f.webkitRelativePath 
+        ? f.webkitRelativePath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').trim() 
+        : '';
+      return {
+        path: relPath || f.name,
+        file: f
+      };
+    });
+
+    processParsedFiles(parsedEntries);
   };
 
   React.useEffect(() => {
@@ -197,10 +266,24 @@ export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
     setIsDragOver(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    setErrorMsg('');
+
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      try {
+        const files = await getFilesFromDataTransfer(e.dataTransfer.items);
+        if (files.length > 0) {
+          processParsedFiles(files);
+        } else {
+          setErrorMsg('Sürüklenen klasör veya dosyalardan veri okunamadı.');
+        }
+      } catch (err: any) {
+        console.error('[Drop Parse Error]', err);
+        setErrorMsg('Klasör yapısı taranırken bir hata oluştu veya okuma engellendi.');
+      }
+    } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFilesSelected(e.dataTransfer.files);
     }
   };
@@ -313,7 +396,9 @@ export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
     // Find and guarantee a valid entry point
     let finalEntryPoint = entryPoint;
     const entryExists = finalFiles.some(f => f.path === finalEntryPoint);
-    if (!finalEntryPoint || !entryExists) {
+    if (!hasHtml) {
+      finalEntryPoint = 'index.html';
+    } else if (!finalEntryPoint || !entryExists) {
       const firstHtml = finalFiles.find(f => isHtmlFile(f.path));
       if (firstHtml) {
         finalEntryPoint = firstHtml.path;
