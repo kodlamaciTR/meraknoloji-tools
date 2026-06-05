@@ -158,5 +158,44 @@ self.addEventListener('fetch', (event) => {
           })
       );
     }
+  } else {
+    // If the request doesn't start with /virtual-app/, check if the requesting client is a virtual app iframe.
+    // This allows us to serve absolute paths (e.g. /assets/style.css) requested inside the iframe 
+    // since the browser resolves absolute paths relative to root (port 3000) instead of /virtual-app/:appId/
+    if (event.clientId && !url.pathname.startsWith('/sw.js') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/src/')) {
+      const fallbackPromise = self.clients.get(event.clientId)
+        .then((client) => {
+          if (client && client.url) {
+            const clientUrl = new URL(client.url);
+            if (clientUrl.pathname.startsWith('/virtual-app/')) {
+              const clientMatch = clientUrl.pathname.match(/^\/virtual-app\/([^\/]+)/);
+              if (clientMatch) {
+                const appId = clientMatch[1];
+                let filePath = url.pathname.replace(/^\/+/, ''); // Clean leading slash for DB search
+
+                try {
+                  filePath = decodeURIComponent(filePath);
+                } catch (e) {}
+
+                console.log(`[SW Client Absolute Intercept] Serving absolute path asset from IndexedDB. Client: ${client.id}, appId: ${appId}, file: ${filePath}`);
+
+                return getDB()
+                  .then((db) => {
+                    return new Promise((resolve) => {
+                      loadFileAndRespond(db, appId, filePath, resolve);
+                    });
+                  });
+              }
+            }
+          }
+          return fetch(event.request);
+        })
+        .catch((err) => {
+          console.error('[SW Client Absolute Intercept Error]:', err);
+          return fetch(event.request);
+        });
+
+      event.respondWith(fallbackPromise);
+    }
   }
 });

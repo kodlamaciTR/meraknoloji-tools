@@ -58,7 +58,10 @@ export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
       .map((f) => {
         let path = f.name.trim();
         // Normalize backslashes to forward slashes for cross-platform compatibility
-        const relPath = f.webkitRelativePath ? f.webkitRelativePath.replace(/\\/g, '/').trim() : '';
+        // also remove any leading/trailing slashes to ensure splitting behaves perfectly
+        const relPath = f.webkitRelativePath 
+          ? f.webkitRelativePath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').trim() 
+          : '';
         
         // Strip top level directory if uploading as folder structure
         if (relPath) {
