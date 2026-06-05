@@ -217,8 +217,9 @@ function loadFileAndRespond(db, appId, filePath, resolve) {
         }));
       }
     } else {
-      console.warn(`[SW] Virtual file not found in DB: ${key}`);
-      resolve(new Response(`<!DOCTYPE html>
+      const serve404 = () => {
+        console.warn(`[SW] Virtual file not found in DB: ${key}`);
+        resolve(new Response(`<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
@@ -240,9 +241,37 @@ function loadFileAndRespond(db, appId, filePath, resolve) {
     </div>
 </body>
 </html>`, {
-        status: 404,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' }
-      }));
+          status: 404,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        }));
+      };
+
+      // Detect SPA (Single Page Application) Routing: if the requested path has no file extension,
+      // and it is of type clean URL (e.g. /dashboard or /profile), fall back to the app entryPoint.
+      const lastSegment = filePath.split('/').pop() || '';
+      const hasExtension = lastSegment.includes('.');
+
+      if (!hasExtension && filePath !== 'index.html') {
+        const appTransaction = db.transaction('apps', 'readonly');
+        const appsStore = appTransaction.objectStore('apps');
+        const appRequest = appsStore.get(appId);
+
+        appRequest.onsuccess = () => {
+          const appMeta = appRequest.result;
+          const targetEntryPoint = (appMeta && appMeta.entryPoint) ? appMeta.entryPoint : 'index.html';
+          if (filePath !== targetEntryPoint) {
+            console.log(`[SW SPA routing fallback] File not found: "${filePath}". Serving entryPoint: "${targetEntryPoint}"`);
+            loadFileAndRespond(db, appId, targetEntryPoint, resolve);
+          } else {
+            serve404();
+          }
+        };
+        appRequest.onerror = () => {
+          serve404();
+        };
+      } else {
+        serve404();
+      }
     }
   };
 
