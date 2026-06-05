@@ -61,15 +61,108 @@ function loadFileAndRespond(db, appId, filePath, resolve) {
       }
 
       console.log(`[SW] Serving virtual file: ${key} (${mimeType})`);
-      resolve(new Response(fileRecord.content, {
-        headers: { 
-          'Content-Type': mimeType,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'Access-Control-Allow-Origin': '*'
-        }
-      }));
+      
+      if (mimeType.startsWith('text/html')) {
+        fileRecord.content.text()
+          .then((text) => {
+            const scriptToInject = `\n<!-- PWA SW & Manifest Platform Shield -->
+<script id="pwa-interceptor">
+  (function() {
+    console.log('[Platform] Shielding virtual env from service worker hijack to keep assets pipeline active.');
+    if ('serviceWorker' in navigator) {
+      const mockRegistration = {
+        scope: window.location.origin + window.location.pathname,
+        active: { 
+          state: 'activated', 
+          scriptURL: window.location.href + 'sw.js',
+          postMessage: function() {}, 
+          addEventListener: function() {}, 
+          removeEventListener: function() {} 
+        },
+        installing: null,
+        waiting: null,
+        update: function() { return Promise.resolve(this); },
+        unregister: function() { return Promise.resolve(true); },
+        addEventListener: function() {},
+        removeEventListener: function() {},
+        dispatchEvent: function() { return true; }
+      };
+
+      const mockServiceWorkerContainer = {
+        register: function(script, options) {
+          console.log('[Platform Proxy] Intercepted register(' + script + ') -> Bypassed to preserve host IndexedDB assets mapping.');
+          return Promise.resolve(mockRegistration);
+        },
+        getRegistration: function() {
+          return Promise.resolve(mockRegistration);
+        },
+        getRegistrations: function() {
+          return Promise.resolve([mockRegistration]);
+        },
+        ready: Promise.resolve(mockRegistration),
+        controller: null,
+        oncontrollerchange: null,
+        addEventListener: function() {},
+        removeEventListener: function() {},
+        dispatchEvent: function() { return true; }
+      };
+
+      try {
+        Object.defineProperty(navigator, 'serviceWorker', {
+          configurable: true,
+          get: function() { return mockServiceWorkerContainer; }
+        });
+      } catch (e) {
+        navigator.serviceWorker.register = mockServiceWorkerContainer.register;
+        navigator.serviceWorker.getRegistration = mockServiceWorkerContainer.getRegistration;
+        navigator.serviceWorker.getRegistrations = mockServiceWorkerContainer.getRegistrations;
+      }
+    }
+  })();
+</script>\n`;
+            
+            let modifiedText = text;
+            if (text.includes('<head>')) {
+              modifiedText = text.replace('<head>', '<head>' + scriptToInject);
+            } else if (text.includes('<HEAD>')) {
+              modifiedText = text.replace('<HEAD>', '<HEAD>' + scriptToInject);
+            } else {
+              modifiedText = scriptToInject + text;
+            }
+
+            resolve(new Response(new Blob([modifiedText], { type: 'text/html; charset=utf-8' }), {
+              headers: { 
+                'Content-Type': 'text/html; charset=utf-8',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+                'Access-Control-Allow-Origin': '*'
+              }
+            }));
+          })
+          .catch((err) => {
+            console.error('[SW Text Parse Error]', err);
+            resolve(new Response(fileRecord.content, {
+              headers: { 
+                'Content-Type': mimeType,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+                'Access-Control-Allow-Origin': '*'
+              }
+            }));
+          });
+      } else {
+        resolve(new Response(fileRecord.content, {
+          headers: { 
+            'Content-Type': mimeType,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'Access-Control-Allow-Origin': '*'
+          }
+        }));
+      }
     } else {
       console.warn(`[SW] Virtual file not found in DB: ${key}`);
       resolve(new Response(`<!DOCTYPE html>

@@ -193,7 +193,14 @@ export function getMimeType(filePath: string): string {
     case 'mjs':
       return 'application/javascript';
     case 'json':
+    case 'webmanifest':
+    case 'manifest':
+    case 'map':
       return 'application/json';
+    case 'xml':
+      return 'application/xml';
+    case 'txt':
+      return 'text/plain';
     case 'png':
       return 'image/png';
     case 'jpg':
