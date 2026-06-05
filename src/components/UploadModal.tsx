@@ -12,13 +12,14 @@ const isHtmlFile = (path: string): boolean => {
   if (!path) return false;
   const cleaned = path.trim().toLowerCase();
   
-  // Sadece dosya uzantısı/adı kontrolü.
-  // .html veya .htm ile bitiyorsa veya içinde geçiyorsa her durumda HTML'dir.
-  return cleaned.endsWith('.html') || 
-         cleaned.endsWith('.htm') || 
-         cleaned.includes('.html') || 
-         cleaned.includes('.htm') ||
-         /\.html?(?:\s|\d|\?|$)/i.test(cleaned);
+  // Extract filename at the end of path
+  const parts = cleaned.split('/');
+  const fileName = parts[parts.length - 1];
+  
+  // Check if filename ends with .html or .htm or has fallback parameters
+  return fileName.endsWith('.html') || 
+         fileName.endsWith('.htm') || 
+         /\.html?(?:\?|#|$)/i.test(fileName);
 };
 
 interface UploadModalProps {
@@ -53,19 +54,24 @@ export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
     setErrorMsg('');
 
     const fileList = Array.from(files);
-    const parsed = fileList.map((f) => {
-      let path = f.name.trim();
-      // Strip top level directory if uploading as folder structure
-      if (f.webkitRelativePath) {
-        const parts = f.webkitRelativePath.split('/');
-        if (parts.length > 1) {
-          path = parts.slice(1).join('/').trim();
-        } else {
-          path = f.webkitRelativePath.trim();
+    const parsed = fileList
+      .map((f) => {
+        let path = f.name.trim();
+        // Normalize backslashes to forward slashes for cross-platform compatibility
+        const relPath = f.webkitRelativePath ? f.webkitRelativePath.replace(/\\/g, '/').trim() : '';
+        
+        // Strip top level directory if uploading as folder structure
+        if (relPath) {
+          const parts = relPath.split('/');
+          if (parts.length > 1) {
+            path = parts.slice(1).join('/').trim();
+          } else {
+            path = relPath;
+          }
         }
-      }
-      return { path, file: f };
-    });
+        return { path, file: f };
+      })
+      .filter((item) => item.path !== ''); // Filter out empty strings or directory markers
 
     // Merge or set files (overwriting for fresh uploads)
     setFilesToUpload(parsed);
