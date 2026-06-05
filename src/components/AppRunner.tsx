@@ -162,7 +162,7 @@ export default function AppRunner({ app, onClose }: AppRunnerProps) {
           onLoad={() => setIsLoading(false)}
           className="w-full h-full border-none bg-white"
           title={`Uygulama - ${app.name}`}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         />
       </div>
