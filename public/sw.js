@@ -255,7 +255,7 @@ self.addEventListener('fetch', (event) => {
     // If the request doesn't start with /virtual-app/, check if the requesting client is a virtual app iframe.
     // This allows us to serve absolute paths (e.g. /assets/style.css) requested inside the iframe 
     // since the browser resolves absolute paths relative to root (port 3000) instead of /virtual-app/:appId/
-    if (event.clientId && !url.pathname.startsWith('/sw.js') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/src/')) {
+    if (event.clientId && url.origin === self.location.origin && !url.pathname.startsWith('/sw.js') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/src/')) {
       const fallbackPromise = self.clients.get(event.clientId)
         .then((client) => {
           if (client && client.url) {
