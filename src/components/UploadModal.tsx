@@ -539,20 +539,18 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
           )}
 
           {reactDevWarning && (
-            <div className="flex flex-col gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-slate-350">
-              <div className="flex items-center gap-2.5 text-amber-500">
-                <AlertTriangle className="h-5 w-5 shrink-0 animate-pulse text-amber-500" />
-                <span className="font-bold">React / Vite Geliştirici Klasörü Algılandı!</span>
+            <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-slate-350">
+              <div className="flex items-center gap-2.5 text-emerald-400">
+                <CheckCircle className="h-5 w-5 shrink-0 animate-pulse text-emerald-400" />
+                <span className="font-bold">✨ Otomatik React / TypeScript Derleyici Aktif!</span>
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Yüklediğiniz dosyalar arasında <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[10px]">package.json</code>, <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[10px]">vite.config.ts</code> veya <code className="bg-slate-900 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[10px]">.tsx / .ts</code> uzantılı kaynak kodları bulunuyor. React projeleri tarayıcıda doğrudan derlenmeden çalışamaz.
+              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                Yukarıda yüklediğiniz klasörde ham React / Vite kaynak kodları (<code className="bg-slate-950 px-1.5 py-0.5 rounded text-emerald-300 font-mono text-[10px]">package.json</code>, <code className="bg-slate-950 px-1.5 py-0.5 rounded text-emerald-300 font-mono text-[10px]">vite.config.ts</code> veya <code className="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-300 font-mono text-[10px]">.tsx / .ts</code>) algılandı.
               </p>
-              <div className="border-t border-amber-500/10 pt-2.5 mt-1 font-sans">
-                <span className="font-semibold text-xs text-amber-400 block mb-1">Uygulamanızı Platformda Nasıl Çalıştırırsınız?</span>
-                <ol className="list-decimal list-inside text-xs text-slate-400 space-y-1 ml-1.5">
-                  <li className="leading-relaxed">Kendi bilgisayarınızda (proje terminalinde) <code className="bg-slate-950 px-1.5 py-0.5 rounded text-emerald-400 font-mono text-[11px]">npm run build</code> komutunu çalıştırın.</li>
-                  <li className="leading-relaxed">Build tamamlandığında projenizde oluşan <code className="bg-slate-950 px-1.5 py-0.5 rounded text-blue-400 font-mono text-[11px] font-bold">dist</code> veya <code className="bg-slate-950 px-1.5 py-0.5 rounded text-blue-400 font-mono text-[11px] font-bold">build</code> klasörünün içindeki tüm dosyaları (assets, index.html vb.) platforma yükleyin.</li>
-                </ol>
+              <div className="border-t border-emerald-500/10 pt-2.5 mt-1 font-sans">
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Hiçbir terminal veya <code className="bg-slate-950 px-1.5 py-0.5 rounded text-blue-400 font-mono text-[10px]">npm run build</code> komutuyla uğraşmanıza gerek yok! Platformumuzun dahili <strong className="text-emerald-400 font-bold">Babel Standalone ESM Derleme Motoru</strong>, uygulamanızı çalıştırdığınız anda tüm kodları tarayıcıda otomatik olarak birleştirir ve çalıştırır. Rahatça uyuyabilirsiniz! 🛌💫
+                </p>
               </div>
             </div>
           )}
