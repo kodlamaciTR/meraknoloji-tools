@@ -50,6 +50,7 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadType, setUploadType] = useState<'files' | 'folder'>('files');
   const [errorMsg, setErrorMsg] = useState('');
+  const [reactDevWarning, setReactDevWarning] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +60,21 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
     const list: { path: string; file: File }[] = [];
 
     const traverse = async (entry: any, path: string = '') => {
+      // Ignore system files and large build artifacts that are not readable/runnable directly
+      const lowerName = entry.name.toLowerCase();
+      if (
+        lowerName === 'node_modules' || 
+        lowerName === '.git' || 
+        lowerName === '.github' || 
+        lowerName === '.next' || 
+        lowerName === '.ds_store' || 
+        lowerName === 'thumbs.db' ||
+        lowerName === '.idea' ||
+        lowerName === '.vscode'
+      ) {
+        return;
+      }
+
       if (entry.isFile) {
         try {
           const file = await new Promise<File>((resolve, reject) => {
@@ -193,6 +209,11 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
       setAppCategory('Geliştirici Araçları');
       setAppIcon('🛠️');
     }
+
+    // Check if uploaded files contains any of standard React or typescript development assets
+    const hasTSorTSX = parsed.some(p => p.path.endsWith('.tsx') || p.path.endsWith('.ts') || p.path.endsWith('.jsx'));
+    const hasViteOrPackage = parsed.some(p => p.path.endsWith('vite.config.ts') || p.path.endsWith('tsconfig.json') || p.path.endsWith('package.json') || p.path.split('/').includes('src'));
+    setReactDevWarning(hasTSorTSX || hasViteOrPackage);
   };
 
   // Handle files parsing from input select elements
@@ -201,15 +222,33 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
     setErrorMsg('');
 
     const fileList = Array.from(files);
-    const parsedEntries = fileList.map((f) => {
-      const relPath = f.webkitRelativePath 
-        ? f.webkitRelativePath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').trim() 
-        : '';
-      return {
-        path: relPath || f.name,
-        file: f
-      };
-    });
+    const parsedEntries = fileList
+      .filter((f) => {
+        const lowerName = f.name.toLowerCase();
+        const relPath = f.webkitRelativePath ? f.webkitRelativePath.toLowerCase() : '';
+        // Skip system/unwanted paths to prevent lag/errors
+        if (
+          lowerName === '.ds_store' || 
+          lowerName === 'thumbs.db' ||
+          relPath.includes('/node_modules/') ||
+          relPath.includes('/.git/') ||
+          relPath.includes('/.github/') ||
+          relPath.includes('/.vscode/') ||
+          relPath.includes('/.idea/')
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((f) => {
+        const relPath = f.webkitRelativePath 
+          ? f.webkitRelativePath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '').trim() 
+          : '';
+        return {
+          path: relPath || f.name,
+          file: f
+        };
+      });
 
     processParsedFiles(parsedEntries);
   };
@@ -499,6 +538,25 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
             </div>
           )}
 
+          {reactDevWarning && (
+            <div className="flex flex-col gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-slate-350">
+              <div className="flex items-center gap-2.5 text-amber-500">
+                <AlertTriangle className="h-5 w-5 shrink-0 animate-pulse text-amber-500" />
+                <span className="font-bold">React / Vite Geliştirici Klasörü Algılandı!</span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Yüklediğiniz dosyalar arasında <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[10px]">package.json</code>, <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[10px]">vite.config.ts</code> veya <code className="bg-slate-900 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[10px]">.tsx / .ts</code> uzantılı kaynak kodları bulunuyor. React projeleri tarayıcıda doğrudan derlenmeden çalışamaz.
+              </p>
+              <div className="border-t border-amber-500/10 pt-2.5 mt-1 font-sans">
+                <span className="font-semibold text-xs text-amber-400 block mb-1">Uygulamanızı Platformda Nasıl Çalıştırırsınız?</span>
+                <ol className="list-decimal list-inside text-xs text-slate-400 space-y-1 ml-1.5">
+                  <li className="leading-relaxed">Kendi bilgisayarınızda (proje terminalinde) <code className="bg-slate-950 px-1.5 py-0.5 rounded text-emerald-400 font-mono text-[11px]">npm run build</code> komutunu çalıştırın.</li>
+                  <li className="leading-relaxed">Build tamamlandığında projenizde oluşan <code className="bg-slate-950 px-1.5 py-0.5 rounded text-blue-400 font-mono text-[11px] font-bold">dist</code> veya <code className="bg-slate-950 px-1.5 py-0.5 rounded text-blue-400 font-mono text-[11px] font-bold">build</code> klasörünün içindeki tüm dosyaları (assets, index.html vb.) platforma yükleyin.</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
           {/* Upload Type Selector */}
           <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-950 p-1 border border-slate-800/60">
             <button
@@ -506,6 +564,7 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
               onClick={() => {
                 setUploadType('files');
                 setFilesToUpload([]);
+                setReactDevWarning(false);
               }}
               className={`flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-all ${
                 uploadType === 'files'
@@ -521,6 +580,7 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
               onClick={() => {
                 setUploadType('folder');
                 setFilesToUpload([]);
+                setReactDevWarning(false);
               }}
               className={`flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-all ${
                 uploadType === 'folder'
