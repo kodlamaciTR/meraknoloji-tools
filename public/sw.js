@@ -148,7 +148,7 @@ function findFileRecord(db, appId, filePath) {
   });
 }
 
-function loadFileAndRespond(db, appId, filePath, resolve, requestDestination) {
+function loadFileAndRespond(db, appId, filePath, resolve, requestDestination, originalRequest) {
   findFileRecord(db, appId, filePath).then(({ record, resolvedPath }) => {
     const fileRecord = record;
     const activePath = resolvedPath || filePath;
@@ -412,6 +412,19 @@ function loadFileAndRespond(db, appId, filePath, resolve, requestDestination) {
         }
       }
     } else {
+      if (originalRequest) {
+        try {
+          const reqUrl = new URL(originalRequest.url);
+          if (reqUrl.origin !== self.location.origin || !reqUrl.pathname.startsWith('/virtual-app/')) {
+            console.log(`[SW Fallback] File ${reqUrl.href} not found in virtual database, falling back to network fetch.`);
+            resolve(fetch(originalRequest));
+            return;
+          }
+        } catch (e) {
+          console.error('[SW Fallback URL Error]', e);
+        }
+      }
+
       const serve404 = () => {
         console.warn(`[SW] Virtual file not found in DB: ${appId}/${filePath}`);
         resolve(new Response(`<!DOCTYPE html>
@@ -502,16 +515,16 @@ self.addEventListener('fetch', (event) => {
                   const targetEntryPoint = (appMeta && appMeta.entryPoint) ? appMeta.entryPoint : 'index.html';
                   filePath = (filePath + targetEntryPoint).replace(/\/+/g, '/');
                   console.log(`[SW Fallback] Redirecting root request to entryPoint: ${filePath}`);
-                  loadFileAndRespond(db, appId, filePath, resolve, event.request.destination);
+                  loadFileAndRespond(db, appId, filePath, resolve, event.request.destination, event.request);
                 };
 
                 appRequest.onerror = () => {
                   filePath = (filePath + 'index.html').replace(/\/+/g, '/');
                   console.log(`[SW Fallback Error] Redirecting to default: ${filePath}`);
-                  loadFileAndRespond(db, appId, filePath, resolve, event.request.destination);
+                  loadFileAndRespond(db, appId, filePath, resolve, event.request.destination, event.request);
                 };
               } else {
-                loadFileAndRespond(db, appId, filePath, resolve, event.request.destination);
+                loadFileAndRespond(db, appId, filePath, resolve, event.request.destination, event.request);
               }
             });
           })
@@ -525,7 +538,7 @@ self.addEventListener('fetch', (event) => {
     // If the request doesn't start with /virtual-app/, check if the requesting client is a virtual app iframe.
     // This allows us to serve absolute paths (e.g. /assets/style.css) requested inside the iframe 
     // since the browser resolves absolute paths relative to root (port 3000) instead of /virtual-app/:appId/
-    if (event.clientId && url.origin === self.location.origin && !url.pathname.startsWith('/sw.js') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/src/')) {
+    if (event.clientId && !url.pathname.startsWith('/sw.js') && !url.pathname.startsWith('/api/')) {
       const fallbackPromise = self.clients.get(event.clientId)
         .then((client) => {
           if (client && client.url) {
@@ -545,7 +558,7 @@ self.addEventListener('fetch', (event) => {
                 return getDB()
                   .then((db) => {
                     return new Promise((resolve) => {
-                      loadFileAndRespond(db, appId, filePath, resolve, event.request.destination);
+                      loadFileAndRespond(db, appId, filePath, resolve, event.request.destination, event.request);
                     });
                   });
               }
