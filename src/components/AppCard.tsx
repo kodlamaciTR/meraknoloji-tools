@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Play, Edit3, Trash2, Heart, Calendar, HardDrive } from 'lucide-react';
+import { Play, Edit3, Trash2, Heart, Calendar, HardDrive, RefreshCw } from 'lucide-react';
 import { WebApp } from '../types';
 
 interface AppCardProps {
@@ -13,6 +13,7 @@ interface AppCardProps {
   onEdit: (app: WebApp) => any;
   onDelete: (id: string) => any;
   onToggleFavorite: (app: WebApp) => any;
+  onUpdateFiles?: (app: WebApp) => any;
   showAdminActions?: boolean;
   key?: any;
 }
@@ -23,6 +24,7 @@ export default function AppCard({
   onEdit,
   onDelete,
   onToggleFavorite,
+  onUpdateFiles,
   showAdminActions = false,
 }: AppCardProps) {
   // Format file size
@@ -159,6 +161,17 @@ export default function AppCard({
           
           {showAdminActions && (
             <>
+              {onUpdateFiles && (
+                <button
+                  id={`update-files-btn-${app.id}`}
+                  onClick={() => onUpdateFiles(app)}
+                  className="rounded-xl border border-slate-800 bg-slate-800/40 p-2.5 text-emerald-500 transition-all duration-200 hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-400"
+                  title="Dosyaları Güncelle (Kodları Yenile)"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              )}
+              
               <button
                 id={`edit-btn-${app.id}`}
                 onClick={() => onEdit(app)}

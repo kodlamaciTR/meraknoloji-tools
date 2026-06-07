@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 
 import { WebApp, AppSettings, Category, CATEGORIES } from './types';
-import { getAllApps, saveApp, deleteApp, updateAppMetadata, exportAllData, importAllData } from './utils/db';
+import { getAllApps, saveApp, deleteApp, updateAppMetadata, exportAllData, importAllData, updateAppWithFiles } from './utils/db';
 
 import AppCard from './components/AppCard';
 import UploadModal from './components/UploadModal';
@@ -52,6 +52,7 @@ export default function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<WebApp | null>(null);
+  const [appUpdatingTarget, setAppUpdatingTarget] = useState<WebApp | null>(null);
 
   // Active View Tab config: 'all' | 'games' | 'favorites' | 'settings'
   const [activeTab, setActiveTab] = useState<'all' | 'games' | 'favorites' | 'settings'>('all');
@@ -482,6 +483,43 @@ export default function App() {
       await loadApplications();
     } catch (err: any) {
       alert('Hata: Uygulama veritabanına kaydedilemedi. Detay: ' + err.message);
+    }
+  };
+
+  // Trigger files replacement update for existing App
+  const handleUpdateAppFiles = async (
+    appId: string,
+    meta: Omit<WebApp, 'id' | 'uploadedAt' | 'isFavorite' | 'lastOpenedAt' | 'sizeBytes'>,
+    files: { path: string; content: Blob; mimeType: string }[]
+  ) => {
+    // SECURITY GUARD: Direct protection of database writes
+    if (!isAdminArmed || !isAdminRevealed) {
+      alert("Güvenlik Hatası: Yetkisiz erişim! Uygulama dosyalarını güncellemek için lütfen önce Ayarlar sayfasından Güvenli Sanal Kasa Şifresini girerek kilidi açın.");
+      return;
+    }
+
+    const existing = apps.find(a => a.id === appId);
+    if (!existing) {
+      alert("Hata: Güncellenecek uygulama bulunamadı.");
+      return;
+    }
+
+    const sizeBytes = files.reduce((acc, f) => acc + f.content.size, 0);
+
+    const updatedApp: WebApp = {
+      ...existing,
+      ...meta,
+      id: appId,
+      sizeBytes
+    };
+
+    try {
+      await updateAppWithFiles(updatedApp, files);
+      setAppUpdatingTarget(null);
+      await loadApplications();
+      alert(`"${updatedApp.name}" uygulamasının kaynak kodları ve dosyaları başarıyla güncellendi!`);
+    } catch (err: any) {
+      alert('Hata: Uygulama dosyaları güncellenemedi. Detay: ' + err.message);
     }
   };
 
@@ -1254,6 +1292,9 @@ export default function App() {
                       setEditingApp(a);
                       setIsEditOpen(true);
                     }}
+                    onUpdateFiles={(a) => {
+                      setAppUpdatingTarget(a);
+                    }}
                     onDelete={handleDeleteApp}
                     onToggleFavorite={handleToggleFavorite}
                     showAdminActions={isAdminArmed && isAdminRevealed}
@@ -1357,6 +1398,15 @@ export default function App() {
           <UploadModal
             onClose={() => setIsUploadOpen(false)}
             onUpload={handleUploadApp}
+          />
+        )}
+
+        {appUpdatingTarget && (
+          <UploadModal
+            onClose={() => setAppUpdatingTarget(null)}
+            onUpload={handleUploadApp}
+            updateTargetApp={appUpdatingTarget}
+            onUpdateFilesOnly={handleUpdateAppFiles}
           />
         )}
 

@@ -28,19 +28,25 @@ interface UploadModalProps {
     appData: Omit<WebApp, 'id' | 'uploadedAt' | 'isFavorite' | 'lastOpenedAt' | 'sizeBytes'>,
     files: { path: string; content: Blob; mimeType: string }[]
   ) => void;
+  updateTargetApp?: WebApp;
+  onUpdateFilesOnly?: (
+    appId: string,
+    appData: Omit<WebApp, 'id' | 'uploadedAt' | 'isFavorite' | 'lastOpenedAt' | 'sizeBytes'>,
+    files: { path: string; content: Blob; mimeType: string }[]
+  ) => void;
 }
 
 const QUICK_EMOJIS = ['📅', '🛠️', '🎨', '🎬', '🎵', '🤖', '🎮', '📁', '🚀', '⚙️', '📈', '🧩', '🩺', '🛒'];
 
-export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
-  const [appName, setAppName] = useState('');
-  const [appDescription, setAppDescription] = useState('');
-  const [appCategory, setAppCategory] = useState<Category>('Verimlilik');
-  const [appIcon, setAppIcon] = useState('📁');
+export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpdateFilesOnly }: UploadModalProps) {
+  const [appName, setAppName] = useState(updateTargetApp ? updateTargetApp.name : '');
+  const [appDescription, setAppDescription] = useState(updateTargetApp ? updateTargetApp.description : '');
+  const [appCategory, setAppCategory] = useState<Category>(updateTargetApp ? updateTargetApp.category as Category : 'Verimlilik');
+  const [appIcon, setAppIcon] = useState(updateTargetApp ? updateTargetApp.icon : '📁');
   const [customEmoji, setCustomEmoji] = useState('');
   
   const [filesToUpload, setFilesToUpload] = useState<{ path: string; file: File }[]>([]);
-  const [entryPoint, setEntryPoint] = useState('');
+  const [entryPoint, setEntryPoint] = useState(updateTargetApp ? updateTargetApp.entryPoint : '');
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadType, setUploadType] = useState<'files' | 'folder'>('files');
   const [errorMsg, setErrorMsg] = useState('');
@@ -418,16 +424,30 @@ export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
       });
 
       // Submit up
-      onUpload(
-        {
-          name: appName.trim(),
-          description: appDescription.trim(),
-          category: appCategory,
-          icon: appIcon,
-          entryPoint: finalEntryPoint,
-        },
-        filesWithBlobs
-      );
+      if (updateTargetApp && onUpdateFilesOnly) {
+        onUpdateFilesOnly(
+          updateTargetApp.id,
+          {
+            name: appName.trim(),
+            description: appDescription.trim(),
+            category: appCategory,
+            icon: appIcon,
+            entryPoint: finalEntryPoint,
+          },
+          filesWithBlobs
+        );
+      } else {
+        onUpload(
+          {
+            name: appName.trim(),
+            description: appDescription.trim(),
+            category: appCategory,
+            icon: appIcon,
+            entryPoint: finalEntryPoint,
+          },
+          filesWithBlobs
+        );
+      }
     } catch (err: any) {
       setErrorMsg(`Yükleme sırasında bir hata oluştu: ${err.message}`);
     }
@@ -448,12 +468,18 @@ export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
         {/* Head */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${updateTargetApp ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
               <Upload className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-display text-xl font-bold text-slate-100">Yeni Uygulama Yükle</h2>
-              <p className="text-xs text-slate-400">Html, Css, JS ve görsel varlıklarınızı doğrudan tarayıcınıza yükleyin</p>
+              <h2 className="font-display text-xl font-bold text-slate-100">
+                {updateTargetApp ? `"${updateTargetApp.name}" Uygulamasını Güncelle` : 'Yeni Uygulama Yükle'}
+              </h2>
+              <p className="text-xs text-slate-400">
+                {updateTargetApp 
+                  ? 'Uygulamanın web dosyalarını yenisiyle değiştirerek anında güncelleyin' 
+                  : 'Html, Css, JS ve görsel varlıklarınızı doğrudan tarayıcınıza yükleyin'}
+              </p>
             </div>
           </div>
           <button
@@ -683,10 +709,12 @@ export default function UploadModal({ onClose, onUpload }: UploadModalProps) {
               className={`rounded-xl px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition-all ${
                 filesToUpload.length === 0
                   ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-500 hover:shadow-blue-600/15'
+                  : updateTargetApp
+                    ? 'bg-emerald-600 hover:bg-emerald-500 hover:shadow-emerald-600/15'
+                    : 'bg-blue-600 hover:bg-blue-500 hover:shadow-blue-600/15'
               }`}
             >
-              Uygulamayı Kaydet ve Ekle
+              {updateTargetApp ? 'Uygulama Dosyalarını ve Kodları Güncelle' : 'Uygulamayı Kaydet ve Ekle'}
             </button>
           </div>
         </form>

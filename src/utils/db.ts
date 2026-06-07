@@ -144,6 +144,58 @@ export async function updateAppMetadata(app: WebApp): Promise<void> {
 }
 
 /**
+ * Updates an existing WebApp metadata and completely replaces its files
+ */
+export async function updateAppWithFiles(
+  app: WebApp, 
+  files: { path: string; content: Blob; mimeType: string }[]
+): Promise<void> {
+  const db = await openDB();
+  
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(['apps', 'files'], 'readwrite');
+    const appsStore = transaction.objectStore('apps');
+    const filesStore = transaction.objectStore('files');
+
+    transaction.oncomplete = () => {
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      reject(transaction.error);
+    };
+
+    // 1. Store/Overwrite App Metadata
+    appsStore.put(app);
+
+    // 2. Clear all staled files first, then write the new ones
+    const range = IDBKeyRange.bound(`${app.id}/`, `${app.id}/\uffff`);
+    const cursorRequest = filesStore.openCursor(range);
+
+    cursorRequest.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      } else {
+        // Once clearing is complete, write fresh files
+        for (const file of files) {
+          const fileId = `${app.id}/${file.path}`;
+          const record: WebAppFile = {
+            id: fileId,
+            appId: app.id,
+            path: file.path,
+            content: file.content,
+            mimeType: file.mimeType
+          };
+          filesStore.put(record);
+        }
+      }
+    };
+  });
+}
+
+/**
  * Deletes a WebApp metadata and ALL associated file assets
  */
 export async function deleteApp(appId: string): Promise<void> {
