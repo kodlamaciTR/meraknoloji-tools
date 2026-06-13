@@ -24,10 +24,18 @@ export default function EditModal({ app, onClose, onSave }: EditModalProps) {
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleCustomEmojiChange = (val: string) => {
-    setCustomEmoji(val);
-    if (val.trim()) {
-      setIcon(val.trim());
-    }
+    import('../utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
+      if (isMaliciousInput(val)) {
+        logSecurityIncident('XSS', val);
+        setErrorMsg("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!");
+        return;
+      }
+      setErrorMsg("");
+      setCustomEmoji(val);
+      if (val.trim()) {
+        setIcon(val.trim());
+      }
+    });
   };
 
   const handleSaveSubmit = (e: React.FormEvent) => {
@@ -49,10 +57,10 @@ export default function EditModal({ app, onClose, onSave }: EditModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
       <div 
         id="edit-modal-container"
-        className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl transition-all md:p-8"
+        className="relative w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl transition-all md:p-8 my-auto max-h-[90vh] overflow-y-auto"
       >
         {/* Head */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
@@ -88,7 +96,17 @@ export default function EditModal({ app, onClose, onSave }: EditModalProps) {
               type="text"
               required
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                import('../utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
+                  if (isMaliciousInput(e.target.value)) {
+                    logSecurityIncident('XSS', e.target.value);
+                    setErrorMsg("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!");
+                    return;
+                  }
+                  setErrorMsg("");
+                  setName(e.target.value);
+                });
+              }}
               className="mt-1.5 w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-200 placeholder-slate-700 focus:border-blue-500 focus:outline-none transition-all"
             />
           </div>
@@ -112,7 +130,17 @@ export default function EditModal({ app, onClose, onSave }: EditModalProps) {
             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">Açıklama</label>
             <textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                import('../utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
+                  if (isMaliciousInput(e.target.value)) {
+                    logSecurityIncident('XSS', e.target.value);
+                    setErrorMsg("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!");
+                    return;
+                  }
+                  setErrorMsg("");
+                  setDescription(e.target.value);
+                });
+              }}
               rows={3}
               className="mt-1.5 w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-200 placeholder-slate-700 focus:border-blue-500 focus:outline-none transition-all resize-none"
               placeholder="Uygulama hakkında kısa bilgi girin..."

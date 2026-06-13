@@ -222,7 +222,7 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
     setErrorMsg('');
 
     const fileList = Array.from(files);
-    const parsedEntries = fileList
+    let parsedEntries = fileList
       .filter((f) => {
         const lowerName = f.name.toLowerCase();
         const relPath = f.webkitRelativePath ? f.webkitRelativePath.toLowerCase() : '';
@@ -249,6 +249,19 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
           file: f
         };
       });
+
+    // Detect if all files share a common root directory and strip it
+    if (parsedEntries.length > 0 && parsedEntries[0].path.includes('/')) {
+      const firstSegmentLength = parsedEntries[0].path.indexOf('/') + 1;
+      const commonRoot = parsedEntries[0].path.substring(0, firstSegmentLength);
+      const allShareRoot = parsedEntries.every(entry => entry.path.startsWith(commonRoot));
+      if (allShareRoot && commonRoot.length > 0) {
+        parsedEntries = parsedEntries.map(entry => ({
+          ...entry,
+          path: entry.path.substring(firstSegmentLength)
+        }));
+      }
+    }
 
     processParsedFiles(parsedEntries);
   };
@@ -342,10 +355,18 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
   };
 
   const handleCustomEmojiChange = (val: string) => {
-    setCustomEmoji(val);
-    if (val.trim()) {
-      setAppIcon(val.trim());
-    }
+    import('../utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
+      if (isMaliciousInput(val)) {
+        logSecurityIncident('XSS', val);
+        setErrorMsg("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!");
+        return;
+      }
+      setErrorMsg("");
+      setCustomEmoji(val);
+      if (val.trim()) {
+        setAppIcon(val.trim());
+      }
+    });
   };
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
@@ -452,6 +473,23 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
       }
     }
 
+    // Media Security Check
+    try {
+      const { checkFileSecurity, logSecurityIncident } = await import('../utils/security');
+      for (const item of finalFiles) {
+        if (item.file.type.startsWith('image/') || item.file.type.startsWith('video/') || item.file.type.startsWith('audio/')) {
+          const securityResult = await checkFileSecurity(item.file);
+          if (!securityResult.isSafe) {
+            logSecurityIncident('Şüpheli Dosya (Hash)', item.path);
+            setErrorMsg(`GÜVENLİK İHLALİ: "${item.path}" dosyasında zararlı yazılım tespit edildi! (${securityResult.message})`);
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Security check failed:', err);
+    }
+
     // Map files to binary Blobs
     try {
       const filesWithBlobs = finalFiles.map((item) => {
@@ -532,8 +570,8 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
         {/* Form Body */}
         <form onSubmit={handleUploadSubmit} className="mt-6 flex flex-col gap-6 overflow-y-auto pr-2 flex-grow">
           {errorMsg && (
-            <div className="flex items-center gap-2.5 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-400">
-              <AlertTriangle className="h-5 w-5 shrink-0" />
+            <div className={`flex items-center gap-2.5 rounded-xl border p-4 text-sm shadow-sm ${errorMsg.includes('GÜVENLİK İHLALİ') ? 'border-red-500 bg-red-500 text-white font-bold animate-pulse shadow-red-500/50' : 'border-red-500/20 bg-red-500/5 text-red-400'}`}>
+              <AlertTriangle className={`h-5 w-5 shrink-0 ${errorMsg.includes('GÜVENLİK İHLALİ') ? 'text-white' : ''}`} />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -651,7 +689,17 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
                     type="text"
                     required
                     value={appName}
-                    onChange={(e) => setAppName(e.target.value)}
+                    onChange={(e) => {
+                      import('../utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
+                        if (isMaliciousInput(e.target.value)) {
+                          logSecurityIncident('XSS', e.target.value);
+                          setErrorMsg("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!");
+                          return;
+                        }
+                        setErrorMsg("");
+                        setAppName(e.target.value);
+                      });
+                    }}
                     className="mt-1.5 w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-200 placeholder-slate-700 focus:border-blue-500 focus:outline-none transition-all"
                     placeholder="Örn: Klasik Yılan Oyunu"
                   />
@@ -676,7 +724,17 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">Açıklama</label>
                   <textarea
                     value={appDescription}
-                    onChange={(e) => setAppDescription(e.target.value)}
+                    onChange={(e) => {
+                      import('../utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
+                        if (isMaliciousInput(e.target.value)) {
+                          logSecurityIncident('XSS', e.target.value);
+                          setErrorMsg("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!");
+                          return;
+                        }
+                        setErrorMsg("");
+                        setAppDescription(e.target.value);
+                      });
+                    }}
                     rows={3}
                     className="mt-1.5 w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-200 placeholder-slate-700 focus:border-blue-500 focus:outline-none transition-all resize-none"
                     placeholder="Uygulama hakkında kısa bilgi ekleyin..."

@@ -29,7 +29,8 @@ import {
   Upload,
   Database,
   Lock,
-  Unlock
+  Unlock,
+  ShieldAlert
 } from 'lucide-react';
 
 import { WebApp, AppSettings, Category, CATEGORIES } from './types';
@@ -52,7 +53,14 @@ export default function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<WebApp | null>(null);
+  const [appToDelete, setAppToDelete] = useState<WebApp | null>(null);
   const [appUpdatingTarget, setAppUpdatingTarget] = useState<WebApp | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+
+  const showToast = (message: string, type: 'error' | 'success' = 'error') => {
+    setToastMsg({ message, type });
+    setTimeout(() => setToastMsg(null), 4000);
+  };
 
   // Active View Tab config: 'all' | 'games' | 'favorites' | 'settings'
   const [activeTab, setActiveTab] = useState<'all' | 'games' | 'favorites' | 'settings'>('all');
@@ -98,6 +106,37 @@ export default function App() {
   });
   // 2. Are the panels VISUALLY REVEALED? (toggled via Ctrl + Alt + N only if armed)
   const [isAdminRevealed, setIsAdminRevealed] = useState(false);
+
+  // Security Logs State
+  const [securityLogs, setSecurityLogs] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem('security_logs');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const loadSecurityLogs = () => {
+    try {
+      const raw = localStorage.getItem('security_logs');
+      setSecurityLogs(raw ? JSON.parse(raw) : []);
+    } catch {
+      setSecurityLogs([]);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'settings' && isAdminRevealed) {
+      loadSecurityLogs();
+    }
+  }, [activeTab, isAdminRevealed]);
+
+  const handleClearSecurityLogs = () => {
+    localStorage.removeItem('security_logs');
+    setSecurityLogs([]);
+  };
+
   const [buttonPressState, setButtonPressState] = useState<'serbest' | 'basıldı'>('serbest');
   const [showComboToast, setShowComboToast] = useState(false);
   const [adminCountdown, setAdminCountdown] = useState<number | null>(null);
@@ -420,23 +459,26 @@ export default function App() {
   };
 
   // Delete Web App
-  const handleDeleteApp = async (id: string) => {
-    // SECURITY GUARD: Direct protection of database writes
+  const handleDeleteApp = (id: string) => {
     if (!isAdminArmed || !isAdminRevealed) {
-      alert("Güvenlik Hatası: Yetkisiz erişim! Uygulama silmek için lütfen önce Ayarlar sayfasından Güvenli Sanal Kasa Şifresini girerek kilidi açın.");
+      showToast("Güvenlik Hatası: Yetkisiz erişim! Uygulama silmek için lütfen önce Ayarlar sayfasından Güvenli Sanal Kasa Şifresini girerek kilidi açın.");
       return;
     }
 
     const target = apps.find(a => a.id === id);
     if (!target) return;
 
-    if (confirm(`"${target.name}" uygulamasını ve bu uygulamaya ait tüm dosyaları kalıcı olarak silmek istediğinizden emin misiniz?`)) {
-      try {
-        await deleteApp(id);
-        await loadApplications();
-      } catch (err: any) {
-        alert('Silme işlemi başarısız: ' + err.message);
-      }
+    setAppToDelete(target);
+  };
+
+  const confirmDeleteApp = async () => {
+    if (!appToDelete) return;
+    try {
+      await deleteApp(appToDelete.id);
+      await loadApplications();
+      setAppToDelete(null);
+    } catch (err: any) {
+      console.error('Silme işlemi başarısız: ' + err.message);
     }
   };
 
@@ -461,7 +503,7 @@ export default function App() {
   ) => {
     // SECURITY GUARD: Direct protection of database writes
     if (!isAdminArmed || !isAdminRevealed) {
-      alert("Güvenlik Hatası: Yetkisiz erişim! Yeni uygulama yüklemek için lütfen önce Ayarlar sayfasından Güvenli Sanal Kasa Şifresini girerek kilidi açın.");
+      showToast("Güvenlik Hatası: Yetkisiz erişim! Yeni uygulama yüklemek için lütfen önce Ayarlar sayfasından Güvenli Sanal Kasa Şifresini girerek kilidi açın.");
       return;
     }
 
@@ -592,7 +634,7 @@ export default function App() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert('Yedek alma sırasında hata oluştu: ' + err.message);
+      showToast('Yedek alma sırasında hata oluştu: ' + err.message);
     } finally {
       setIsExporting(false);
     }
@@ -937,7 +979,16 @@ export default function App() {
                         <input
                           type="password"
                           value={savedSettings.geminiApiKey}
-                          onChange={(e) => handleSaveSettings({ geminiApiKey: e.target.value })}
+                          onChange={(e) => {
+                            import('./utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
+                              if (isMaliciousInput(e.target.value)) {
+                                logSecurityIncident('XSS', e.target.value);
+                                showToast("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!", "error");
+                                return;
+                              }
+                              handleSaveSettings({ geminiApiKey: e.target.value });
+                            });
+                          }}
                           placeholder="AIzaSy..."
                           className="mt-1.5 w-full rounded-xl border border-zinc-200 dark:border-slate-800 bg-zinc-50 dark:bg-slate-950 px-4 py-2.5 text-sm py-2.5 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-blue-500 transition-all font-mono"
                         />
@@ -1011,6 +1062,55 @@ export default function App() {
                           />
                         </label>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Security Logs Interface */}
+                  <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm animate-fade-in max-w-2xl mx-auto w-full">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2">
+                        <ShieldAlert className="h-5 w-5 text-rose-500" />
+                        Güvenlik Raporları (Security Logs)
+                      </h3>
+                      {securityLogs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearSecurityLogs}
+                          className="rounded-lg bg-zinc-100 dark:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-slate-700 transition-colors uppercase tracking-wider"
+                        >
+                          Clear Logs
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-6 font-mono">
+                      Merkezi Kalkan (XSS) ve VirusTotal Altyapısı (Hash) tarafından engellenen şüpheli aktiviteler.
+                    </p>
+
+                    <div className="rounded-xl border border-zinc-150 dark:border-slate-800/60 bg-zinc-50/50 dark:bg-slate-950/40 p-4 max-h-[300px] overflow-y-auto">
+                      {securityLogs.length === 0 ? (
+                        <div className="py-8 text-center">
+                          <span className="text-zinc-400 dark:text-zinc-500 text-sm font-mono block">No security incidents detected.</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-3">
+                          {securityLogs.map((log, index) => (
+                            <div key={index} className="rounded-lg border border-rose-500/10 bg-rose-500/5 p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                                  <AlertCircle className="h-3 w-3" />
+                                  {log.threatType}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 font-mono">
+                                  {new Date(log.timestamp).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="text-xs font-mono text-zinc-700 dark:text-zinc-300 break-words whitespace-pre-wrap bg-white dark:bg-slate-950 border border-zinc-200 dark:border-slate-800 p-2 rounded">
+                                {log.blockedContent}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>
@@ -1166,7 +1266,16 @@ export default function App() {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    import('./utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
+                      if (isMaliciousInput(e.target.value)) {
+                        logSecurityIncident('XSS', e.target.value);
+                        showToast("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!", "error");
+                        return;
+                      }
+                      setSearchQuery(e.target.value);
+                    });
+                  }}
                   placeholder="Yüklediğiniz uygulama ve oyunlarda anlık arama yapın..."
                   className="w-full rounded-2xl border border-zinc-200 dark:border-slate-850/80 bg-white dark:bg-slate-900/40 py-3.5 pl-12 pr-4 text-sm font-medium text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-600 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/20 transition-all font-mono"
                 />
@@ -1421,6 +1530,36 @@ export default function App() {
           />
         )}
 
+        {appToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-2xl border border-red-500/20 bg-slate-900 p-6 shadow-2xl">
+              <div className="flex items-center gap-3 text-red-500 mb-4">
+                <AlertCircle className="h-6 w-6" />
+                <h3 className="font-display text-lg font-bold">Uygulamayı Sil</h3>
+              </div>
+              <p className="text-sm text-slate-300 mb-6">
+                "{appToDelete.name}" uygulamasını ve bu uygulamaya ait tüm dosyaları kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setAppToDelete(null)}
+                  className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+                >
+                  İptal
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteApp}
+                  className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500"
+                >
+                  Evet, Sil
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeApp && (
           <AppRunner
             app={activeApp}
@@ -1457,9 +1596,9 @@ export default function App() {
                 <div className="flex gap-3 items-start">
                   <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-500/10 text-emerald-500 font-mono text-[10px] font-bold mt-0.5 select-none shrink-0 border border-emerald-500/20">1</span>
                   <div>
-                    <strong className="text-zinc-800 dark:text-zinc-100 block text-xs">🔊 İnteraktif Gerçekçi Ses Efektleri</strong>
+                    <strong className="text-zinc-800 dark:text-zinc-100 block text-xs">🎙️ Transkript Pro AI Entegrasyonu</strong>
                     <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block mt-0.5 leading-normal">
-                      Kasa tuşuna bastığınızda, hata yaptığınızda ya da şifreyi doğru girdiğinizde çalışan özel retro ses sinyalleri (synthesizer) sisteme entegre edildi.
+                      Gelişmiş zaman damgalı deşifre ve medya analiz motoru platform ekosistemine dahil edildi.
                     </span>
                   </div>
                 </div>
@@ -1467,9 +1606,9 @@ export default function App() {
                 <div className="flex gap-3 items-start">
                   <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-500/10 text-emerald-500 font-mono text-[10px] font-bold mt-0.5 select-none shrink-0 border border-emerald-500/20">2</span>
                   <div>
-                    <strong className="text-zinc-800 dark:text-zinc-100 block text-xs">🚀 JSON Eşitleme ve v3 Stabilizasyonu</strong>
+                    <strong className="text-zinc-800 dark:text-zinc-100 block text-xs">🛡️ Büyük Güvenlik Güncellemesi (V2.0)</strong>
                     <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block mt-0.5 leading-normal">
-                      Altyapıda senkronizasyon kontrolleri güçlendirildi ve MN Tools v3 sürüm yükseltme hazırlıkları tamamlandı.
+                      Tüm platform girdi alanları ve dosya yüklemeleri için merkezi siber kalkan, yapay zeka koruma filtreleri ve antivirüs altyapısı devreye alındı.
                     </span>
                   </div>
                 </div>
@@ -1512,6 +1651,18 @@ export default function App() {
                 </button>
               </div>
 
+            </div>
+          </div>
+        )}
+
+        {toastMsg && (
+          <div className="fixed bottom-6 right-6 z-[200] w-[calc(100%-3rem)] max-w-sm">
+            <div className={`rounded-xl px-4 py-3 shadow-2xl border flex items-center gap-3 backdrop-blur-md ${toastMsg.type === 'error' ? 'bg-red-500/90 border-red-500/30 text-white' : 'bg-emerald-500/90 border-emerald-500/30 text-white'}`}>
+              <AlertCircle className={`h-5 w-5 shrink-0`} />
+              <p className="text-sm font-semibold m-0 flex-1">{toastMsg.message}</p>
+              <button onClick={() => setToastMsg(null)} className="opacity-70 hover:opacity-100 transition-opacity">
+                <X className="h-5 w-5" />
+              </button>
             </div>
           </div>
         )}

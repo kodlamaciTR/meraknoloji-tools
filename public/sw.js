@@ -94,6 +94,10 @@ function rewriteImports(code) {
     return `import('https://esm.sh/${mapped}')`;
   });
 
+  // Rewrite hardcoded Netlify/Localhost domain urls to virtual absolute paths in transpiled code
+  rewritten = rewritten.replace(/https:\/\/[a-zA-Z0-9-]+\.netlify\.app\//gi, '/');
+  rewritten = rewritten.replace(/http:\/\/localhost:\d+\//gi, '/');
+
   return rewritten;
 }
 
@@ -117,7 +121,7 @@ function findFileRecord(db, appId, filePath) {
 
           function tryNextExt() {
             if (extIndex >= extensions.length) {
-              resolve({ record: null, resolvedPath: filePath });
+              fallbackDirectorySearch();
               return;
             }
             const ext = extensions[extIndex++];
@@ -138,7 +142,35 @@ function findFileRecord(db, appId, filePath) {
 
           tryNextExt();
         } else {
-          resolve({ record: null, resolvedPath: filePath });
+          fallbackDirectorySearch();
+        }
+
+        function fallbackDirectorySearch() {
+          let found = false;
+          // Fallback: Check if the file is nested inside a root folder (because of folder upload)
+          const searchKey = `/${filePath}`;
+          const cursorTransaction = db.transaction('files', 'readonly');
+          const cursorStore = cursorTransaction.objectStore('files');
+          const cursorRequest = cursorStore.openCursor(IDBKeyRange.bound(`${appId}/`, `${appId}/\\uffff`));
+          
+          cursorRequest.onsuccess = (e) => {
+            const cursor = e.target.result;
+            if (cursor) {
+               if (cursor.key.endsWith(searchKey) || cursor.key === `${appId}/${filePath}`) {
+                 found = true;
+                 resolve({ record: cursor.value, resolvedPath: cursor.key.substring(appId.length + 1) });
+                 return;
+               }
+               cursor.continue();
+            } else {
+               if (!found) {
+                 resolve({ record: null, resolvedPath: filePath });
+               }
+            }
+          };
+          cursorRequest.onerror = () => {
+             resolve({ record: null, resolvedPath: filePath });
+          };
         }
       }
     };
@@ -279,12 +311,22 @@ function loadFileAndRespond(db, appId, filePath, resolve, requestDestination, or
 </script>\n`;
             
             let modifiedText = text;
-            if (text.includes('<head>')) {
-              modifiedText = text.replace('<head>', '<head>' + scriptToInject);
-            } else if (text.includes('<HEAD>')) {
-              modifiedText = text.replace('<HEAD>', '<HEAD>' + scriptToInject);
+            
+            // Remove base tag to avoid incorrect resolution of virtual app assets
+            modifiedText = modifiedText.replace(/<base\s+[^>]*>/gi, '');
+
+            // Replace netlify and localhost URLs with virtual app path or relative path
+            modifiedText = modifiedText.replace(/https:\/\/[a-zA-Z0-9-]+\.netlify\.app\//gi, `/virtual-app/${appId}/`);
+            modifiedText = modifiedText.replace(/https:\/\/[a-zA-Z0-9-]+\.netlify\.app/gi, `/virtual-app/${appId}`);
+            modifiedText = modifiedText.replace(/http:\/\/localhost:\d+\//gi, `/virtual-app/${appId}/`);
+            modifiedText = modifiedText.replace(/http:\/\/localhost:\d+/gi, `/virtual-app/${appId}`);
+
+            if (modifiedText.includes('<head>')) {
+              modifiedText = modifiedText.replace('<head>', '<head>' + scriptToInject);
+            } else if (modifiedText.includes('<HEAD>')) {
+              modifiedText = modifiedText.replace('<HEAD>', '<HEAD>' + scriptToInject);
             } else {
-              modifiedText = scriptToInject + text;
+              modifiedText = scriptToInject + modifiedText;
             }
 
             resolve(new Response(new Blob([modifiedText], { type: 'text/html; charset=utf-8' }), {
@@ -408,7 +450,22 @@ function loadFileAndRespond(db, appId, filePath, resolve, requestDestination, or
               serveMimeFallback();
             });
         } else {
-          serveMimeFallback();
+          // Check if it's an asset imported directly in JS
+          const isAsset = lowerPath.endsWith('.svg') || lowerPath.endsWith('.png') || lowerPath.endsWith('.jpg') || lowerPath.endsWith('.jpeg') || lowerPath.endsWith('.gif') || lowerPath.endsWith('.webp');
+          if (isAsset && requestDestination !== 'image' && requestDestination !== 'iframe' && requestDestination !== 'document') {
+             // Return JS module that exports the path
+             const virtualUrl = `/virtual-app/${appId}/${activePath}`;
+             const jsCode = `export default ${JSON.stringify(virtualUrl)};`;
+             resolve(new Response(new Blob([jsCode], { type: 'application/javascript; charset=utf-8' }), {
+                headers: {
+                  'Content-Type': 'application/javascript; charset=utf-8',
+                  'Cache-Control': 'no-cache, no-store, must-revalidate',
+                  'Access-Control-Allow-Origin': '*'
+                }
+             }));
+          } else {
+            serveMimeFallback();
+          }
         }
       }
     } else {
