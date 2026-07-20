@@ -1613,6 +1613,16 @@ export default function App() {
                   </div>
                 </div>
 
+                <div className="flex gap-3 items-start">
+                  <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-500/10 text-emerald-500 font-mono text-[10px] font-bold mt-0.5 select-none shrink-0 border border-emerald-500/20">3</span>
+                  <div>
+                    <strong className="text-zinc-800 dark:text-zinc-100 block text-xs">🧪 Deneme Yayını (Test)</strong>
+                    <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block mt-0.5 leading-normal">
+                      Bu bir deneme yayınıdır. Platform altyapı limitleri ve deploy senkronizasyonu test edilmektedir.
+                    </span>
+                  </div>
+                </div>
+
                 {/* Gelecekteki Beklenen Özellikler Bölümü */}
                 <div className="pt-3.5 border-t border-zinc-155 dark:border-slate-800/80 mt-3">
                   <h4 className="font-display font-extrabold text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 mb-2.5 uppercase tracking-wider font-mono">
