@@ -40,6 +40,7 @@ import AppCard from './components/AppCard';
 import UploadModal from './components/UploadModal';
 import EditModal from './components/EditModal';
 import AppRunner from './components/AppRunner';
+import { Footer } from './components/Footer';
 
 export default function App() {
   // Service Worker & DB states
@@ -1676,7 +1677,8 @@ export default function App() {
             </div>
           </div>
         )}
-
+        
+        <Footer />
       </div>
     </div>
   );
