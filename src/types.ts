@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export type AppBadge = 'ai' | 'api' | 'beta' | 'new' | 'popular';
+
 export interface WebApp {
   id: string;
   name: string;
@@ -14,6 +16,7 @@ export interface WebApp {
   isFavorite: boolean;
   lastOpenedAt: number | null;
   sizeBytes: number;
+  badges?: AppBadge[];
 }
 
 export interface WebAppFile {
@@ -31,10 +34,18 @@ export interface SearchHistoryItem {
 }
 
 export type ThemePreference = 'light' | 'dark' | 'system';
+export type AIProvider = 'gemini' | 'groq';
+
+export interface AISettings {
+  provider: AIProvider;
+  geminiKey: string;
+  groqKey: string;
+}
 
 export interface AppSettings {
   theme: ThemePreference;
-  geminiApiKey: string;
+  geminiApiKey: string; // Kept for backwards compatibility
+  aiSettings?: AISettings;
 }
 
 export const CATEGORIES = [

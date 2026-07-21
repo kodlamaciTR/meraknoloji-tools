@@ -5,7 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { X, Upload, FolderOpen, FileCode, CheckCircle, AlertTriangle } from 'lucide-react';
-import { WebApp, CATEGORIES, Category } from '../types';
+import { WebApp, CATEGORIES, Category, AppBadge } from '../types';
 import { getMimeType } from '../utils/db';
 
 const isHtmlFile = (path: string): boolean => {
@@ -37,12 +37,20 @@ interface UploadModalProps {
 }
 
 const QUICK_EMOJIS = ['📅', '🛠️', '🎨', '🎬', '🎵', '🤖', '🎮', '📁', '🚀', '⚙️', '📈', '🧩', '🩺', '🛒'];
+const BADGE_OPTIONS: { id: AppBadge; label: string }[] = [
+  { id: 'ai', label: 'AI Destekli' },
+  { id: 'api', label: 'API Gerekli' },
+  { id: 'beta', label: 'Beta' },
+  { id: 'new', label: 'Yeni' },
+  { id: 'popular', label: 'Popüler' },
+];
 
 export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpdateFilesOnly }: UploadModalProps) {
   const [appName, setAppName] = useState(updateTargetApp ? updateTargetApp.name : '');
   const [appDescription, setAppDescription] = useState(updateTargetApp ? updateTargetApp.description : '');
   const [appCategory, setAppCategory] = useState<Category>(updateTargetApp ? updateTargetApp.category as Category : 'Verimlilik');
   const [appIcon, setAppIcon] = useState(updateTargetApp ? updateTargetApp.icon : '📁');
+  const [badges, setBadges] = useState<AppBadge[]>(updateTargetApp?.badges || []);
   const [customEmoji, setCustomEmoji] = useState('');
   
   const [filesToUpload, setFilesToUpload] = useState<{ path: string; file: File }[]>([]);
@@ -272,12 +280,6 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
     const entryPointSelected = entryPoint || '(Henüz Seçilmedi/Geçersiz)';
     const buttonState = fileCount > 0 ? 'ENABLED (En az 1 dosya yüklendi)' : 'DISABLED (Yüklenmiş dosya yok)';
 
-    console.log('[DEBUG] --- GİRİŞ NOKTASI VE DOSYA KONTROLÜ ---');
-    console.log(`[DEBUG] fileCount: ${fileCount}`);
-    console.log(`[DEBUG] htmlFileExists: ${htmlFileExists}`);
-    console.log(`[DEBUG] entryPointSelected: ${entryPointSelected}`);
-    console.log(`[DEBUG] buttonState: ${buttonState}`);
-    console.log('----------------------------------------------');
   }, [filesToUpload, entryPoint]);
 
   // Synchronize entryPoint if filesToUpload change to make sure it always references a valid HTML or fallback file
@@ -388,7 +390,6 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
 
     // Fallback: Eğer hiç HTML dosyası algılanmadıysa, sistemin kilitlenmesini engellemek için arka planda otomatik index.html oluştur
     if (!hasHtml) {
-      console.log('[DEBUG] Hiçbir HTML dosyası algılanamadı. Otomatik index.html oluşturuluyor.');
       const jsFile = filesToUpload.find(f => f.path.toLowerCase().endsWith('.js'));
       const cssFile = filesToUpload.find(f => f.path.toLowerCase().endsWith('.css'));
       
@@ -509,6 +510,7 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
             description: appDescription.trim(),
             category: appCategory,
             icon: appIcon,
+            badges: badges,
             entryPoint: finalEntryPoint,
           },
           filesWithBlobs
@@ -520,6 +522,7 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
             description: appDescription.trim(),
             category: appCategory,
             icon: appIcon,
+            badges: badges,
             entryPoint: finalEntryPoint,
           },
           filesWithBlobs
@@ -718,6 +721,30 @@ export default function UploadModal({ onClose, onUpload, updateTargetApp, onUpda
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">Rozetler (Opsiyonel)</label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {BADGE_OPTIONS.map((badge) => (
+                      <button
+                        key={badge.id}
+                        type="button"
+                        onClick={() => {
+                          setBadges(prev => 
+                            prev.includes(badge.id) ? prev.filter(x => x !== badge.id) : [...prev, badge.id]
+                          )
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                          badges.includes(badge.id) 
+                            ? 'border-blue-500 bg-blue-500/10 text-blue-400' 
+                            : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        {badge.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>

@@ -5,7 +5,15 @@
 
 import React from 'react';
 import { Play, Edit3, Trash2, Heart, Calendar, HardDrive, RefreshCw } from 'lucide-react';
-import { WebApp } from '../types';
+import { WebApp, AppBadge } from '../types';
+
+const BADGE_CONFIG: Record<AppBadge, { label: string; icon: string; style: string }> = {
+  ai: { label: 'AI Destekli', icon: '🤖', style: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20' },
+  api: { label: 'API Gerekli', icon: '🔑', style: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+  beta: { label: 'Beta', icon: '🧪', style: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' },
+  new: { label: 'Yeni', icon: '⭐', style: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  popular: { label: 'Popüler', icon: '🔥', style: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+};
 
 interface AppCardProps {
   app: WebApp;
@@ -122,11 +130,21 @@ export default function AppCard({
           {app.name}
         </h3>
 
-        {/* Category badge */}
-        <div className="mt-2">
+        {/* Category & Badges */}
+        <div className="mt-2 flex flex-wrap gap-2">
           <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${getCategoryStyles(app.category)}`}>
             {app.category}
           </span>
+          {app.badges?.map((badgeId) => {
+            const badge = BADGE_CONFIG[badgeId];
+            if (!badge) return null;
+            return (
+              <span key={badgeId} title={badge.label} className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${badge.style}`}>
+                <span>{badge.icon}</span>
+                <span>{badge.label}</span>
+              </span>
+            );
+          })}
         </div>
 
         <p className="mt-3 text-sm text-slate-400 line-clamp-2 min-h-[2.5rem]">

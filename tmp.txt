@@ -1,0 +1,243 @@
+   996	                </div>
+   997	              )}
+   998	            </div>
+   999	            
+  1000	            {/* System Admin Panel - Only visible when URL is #admin */}
+  1001	            {isSystemAdminUIEnabled && (
+  1002	              <div className="md:col-span-4 mt-12 mb-8 animate-fade-in border-t border-zinc-200 dark:border-slate-800 pt-8">
+  1003	                <div className="flex flex-col items-center mb-8">
+  1004	                  <h2 className="font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
+  1005	                    <ShieldAlert className="h-6 w-6 text-rose-500" />
+  1006	                    Sistem Yönetim Paneli
+  1007	                  </h2>
+  1008	                  <p className="text-sm text-zinc-550 dark:text-zinc-400 mt-2 text-center max-w-lg">
+  1009	                    Bu alan sadece platform yöneticileri içindir. Lütfen yetkili değilseniz bu alanı terk edin.
+  1010	                  </p>
+  1011	                </div>
+  1012	
+  1013	                {isAdminArmed && isAdminRevealed ? (
+  1014	                  <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto">
+  1015	                    {/* Data Backup Interface */}
+  1016	                    <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm animate-fade-in w-full">
+  1017	                      <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2 mb-2 justify-center">
+  1018	                        <Database className="h-5 w-5 text-indigo-500" />
+  1019	                        Veri Yedekleme ve Geri Yükleme
+  1020	                      </h3>
+  1021	                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-6 text-center">
+  1022	                        Platformdaki tüm yüklü uygulama kartlarını ve sanal dosyaları tek tıklamayla JSON yedek dosyası olarak bilgisayarınıza yedekleyin veya geri yükleyin.
+  1023	                      </p>
+  1024	
+  1025	                    <div className="rounded-xl border border-zinc-150 dark:border-slate-800/60 bg-zinc-50/50 dark:bg-slate-950/40 p-5 flex flex-col items-center">
+  1026	                      <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
+  1027	                        <button
+  1028	                          type="button"
+  1029	                          disabled={isExporting}
+  1030	                          onClick={handleExportBackup}
+  1031	                          className="flex-1 max-w-xs flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-550 disabled:bg-zinc-300 text-white px-5 py-3 text-xs font-bold transition-all cursor-pointer font-mono active:scale-98"
+  1032	                        >
+  1033	                          <Download className="h-3.5 w-3.5" />
+  1034	                          {isExporting ? 'Yedek Alınıyor...' : 'Platformu Yedekle (.json)'}
+  1035	                        </button>
+  1036	
+  1037	                        <label className="flex-1 max-w-xs flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:bg-zinc-100 dark:hover:bg-slate-900 text-zinc-700 dark:text-slate-300 px-5 py-3 text-xs font-bold transition-all cursor-pointer font-mono text-center active:scale-98">
+  1038	                          <Upload className="h-3.5 w-3.5 text-slate-400" />
+  1039	                          <span>{isImporting ? 'Yükleniyor...' : 'Yedekten Geri Yükle...'}</span>
+  1040	                          <input
+  1041	                            type="file"
+  1042	                            accept=".json"
+  1043	                            onChange={handleImportBackup}
+  1044	                            disabled={isImporting}
+  1045	                            className="hidden"
+  1046	                          />
+  1047	                        </label>
+  1048	                      </div>
+  1049	                    </div>
+  1050	                  </div>
+  1051	
+  1052	                  {/* Security Logs Interface */}
+  1053	                  <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm animate-fade-in max-w-2xl mx-auto w-full">
+  1054	                    <div className="flex items-center justify-between mb-2">
+  1055	                      <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2">
+  1056	                        <ShieldAlert className="h-5 w-5 text-rose-500" />
+  1057	                        Güvenlik Raporları (Security Logs)
+  1058	                      </h3>
+  1059	                      {securityLogs.length > 0 && (
+  1060	                        <button
+  1061	                          type="button"
+  1062	                          onClick={handleClearSecurityLogs}
+  1063	                          className="rounded-lg bg-zinc-100 dark:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-slate-700 transition-colors uppercase tracking-wider"
+  1064	                        >
+  1065	                          Clear Logs
+  1066	                        </button>
+  1067	                      )}
+  1068	                    </div>
+  1069	                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-6 font-mono">
+  1070	                      Merkezi Kalkan (XSS) ve VirusTotal Altyapısı (Hash) tarafından engellenen şüpheli aktiviteler.
+  1071	                    </p>
+  1072	
+  1073	                    <div className="rounded-xl border border-zinc-150 dark:border-slate-800/60 bg-zinc-50/50 dark:bg-slate-950/40 p-4 max-h-[300px] overflow-y-auto">
+  1074	                      {securityLogs.length === 0 ? (
+  1075	                        <div className="py-8 text-center">
+  1076	                          <span className="text-zinc-400 dark:text-zinc-500 text-sm font-mono block">No security incidents detected.</span>
+  1077	                        </div>
+  1078	                      ) : (
+  1079	                        <div className="flex flex-col gap-3">
+  1080	                          {securityLogs.map((log, index) => (
+  1081	                            <div key={index} className="rounded-lg border border-rose-500/10 bg-rose-500/5 p-3">
+  1082	                              <div className="flex items-center justify-between mb-2">
+  1083	                                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+  1084	                                  <AlertCircle className="h-3 w-3" />
+  1085	                                  {log.threatType}
+  1086	                                </span>
+  1087	                                <span className="text-[10px] text-zinc-500 font-mono">
+  1088	                                  {new Date(log.timestamp).toLocaleString()}
+  1089	                                </span>
+  1090	                              </div>
+  1091	                              <div className="text-xs font-mono text-zinc-700 dark:text-zinc-300 break-words whitespace-pre-wrap bg-white dark:bg-slate-950 border border-zinc-200 dark:border-slate-800 p-2 rounded">
+  1092	                                {log.blockedContent}
+  1093	                              </div>
+  1094	                            </div>
+  1095	                          ))}
+  1096	                        </div>
+  1097	                      )}
+  1098	                    </div>
+  1099	                  </div>
+  1100	                </div>
+  1101	              ) : (
+  1102	                <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-zinc-50/50 dark:bg-slate-950/40 p-6 md:p-8 flex flex-col items-center justify-center select-none shadow-inner max-w-md mx-auto w-full">
+  1103	                  {!isAdminArmed ? (
+  1104	                    <div className="text-center py-6">
+  1105	                      <Lock className="h-9 w-9 text-zinc-350 dark:text-zinc-655 mx-auto mb-3" />
+  1106	                      <h4 className="text-xs font-black uppercase font-mono text-zinc-500 dark:text-zinc-400 tracking-widest">
+  1107	                        Gelişmiş Yönetici Modu Kilitli
+  1108	                      </h4>
+  1109	                      <p className="text-[11px] text-zinc-450 dark:text-zinc-500 leading-relaxed max-w-sm mx-auto mt-2 font-mono">
+  1110	                        Yapay Zeka yapılandırması ve Yedekleme işlemlerine erişmek için yukarıdaki kilit tuşunu <span className="text-rose-500 font-bold">(Erişimi Aç)</span> tıklayarak yeşil / aktif hale getirmelisiniz.
+  1111	                      </p>
+  1112	                    </div>
+  1113	                  ) : (
+  1114	                    <div className="w-full flex flex-col items-center animate-fade-in">
+  1115	                      {/* Safe Icon Header with glowing light */}
+  1116	                      <div className="flex items-center gap-2 mb-4">
+  1117	                        <div className="relative">
+  1118	                          <Lock className="h-5 w-5 text-amber-500 animate-pulse" />
+  1119	                          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_6px_#f59e0b]"></span>
+  1120	                        </div>
+  1121	                        <span className="text-xs font-black tracking-widest font-mono text-zinc-600 dark:text-zinc-300 uppercase">
+  1122	                          GÜVENLİ SANAL KASA GİRİŞİ
+  1123	                        </span>
+  1124	                      </div>
+  1125	
+  1126	                      {/* LED Display Screen */}
+  1127	                      <div className={`w-full rounded-xl border p-3.5 mb-5 font-mono text-center tracking-widest transition-all duration-300 shadow-sm ${
+  1128	                        pinStatus === 'success'
+  1129	                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.15)] animate-pulse'
+  1130	                          : pinStatus === 'error'
+  1131	                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.15)]'
+  1132	                            : 'bg-zinc-950 border-zinc-800 text-amber-500 shadow-inner'
+  1133	                      }`}>
+  1134	                        <div className="text-[10px] uppercase font-bold tracking-normal text-zinc-500 mb-1">
+  1135	                          {pinStatus === 'success' 
+  1136	                            ? '✓ ERİŞİM ONAYLANDI' 
+  1137	                            : pinStatus === 'error' 
+  1138	                              ? '✗ HATALI ŞİFRE' 
+  1139	                              : 'KASA ŞİFRESİNİ GİRİNİZ'}
+  1140	                        </div>
+  1141	                        <div className="text-2xl font-black flex items-center justify-center gap-1 mt-1 text-center font-mono">
+  1142	                          {pinStatus === 'success' ? (
+  1143	                            <span className="text-base font-bold uppercase tracking-wider text-emerald-400 animate-pulse">KASA AÇILIYOR...</span>
+  1144	                          ) : pinStatus === 'error' ? (
+  1145	                            <span className="text-base font-bold uppercase tracking-wider text-rose-400">ERİŞİM REDDEDİLDİ</span>
+  1146	                          ) : (
+  1147	                            <div className="flex items-center gap-2.5 justify-center py-1">
+  1148	                              {[0, 1, 2, 3].map((index) => (
+  1149	                                <span 
+  1150	                                  key={index} 
+  1151	                                  className={`inline-block w-3 h-3 rounded-full transition-all duration-150 ${
+  1152	                                    pinInput.length > index 
+  1153	                                      ? 'bg-amber-400 shadow-[0_0_6px_#fbbf24] scale-110' 
+  1154	                                      : 'bg-zinc-800'
+  1155	                                  }`} 
+  1156	                                />
+  1157	                              ))}
+  1158	                            </div>
+  1159	                          )}
+  1160	                        </div>
+  1161	                      </div>
+  1162	
+  1163	                      {/* Numeric Keypad Grid 3x4 */}
+  1164	                      <div className="grid grid-cols-3 gap-2.5 w-full max-w-[270px]">
+  1165	                        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+  1166	                          <button
+  1167	                            key={digit}
+  1168	                            type="button"
+  1169	                            onClick={() => handlePinDigit(digit)}
+  1170	                            className="h-12 flex items-center justify-center text-sm font-bold font-mono rounded-xl bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-800 hover:bg-zinc-100 dark:hover:bg-slate-800 active:bg-zinc-200 dark:active:bg-slate-700 text-zinc-800 dark:text-zinc-200 cursor-pointer shadow-sm active:scale-95 transition-all select-none"
+  1171	                          >
+  1172	                            {digit}
+  1173	                          </button>
+  1174	                        ))}
+  1175	                        
+  1176	                        {/* Clear Key 'C' */}
+  1177	                        <button
+  1178	                          type="button"
+  1179	                          onClick={handlePinClear}
+  1180	                          className="h-12 flex items-center justify-center text-xs font-black font-mono rounded-xl bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/25 active:scale-95 text-rose-500 cursor-pointer shadow-sm transition-all select-none"
+  1181	                          title="Temizle"
+  1182	                        >
+  1183	                          C
+  1184	                        </button>
+  1185	
+  1186	                        {/* Zero Key '0' */}
+  1187	                        <button
+  1188	                          type="button"
+  1189	                          onClick={() => handlePinDigit('0')}
+  1190	                          className="h-12 flex items-center justify-center text-sm font-bold font-mono rounded-xl bg-white dark:bg-slate-900 border border-zinc-200 dark:border-slate-800 hover:bg-zinc-100 dark:hover:bg-slate-800 active:bg-zinc-200 dark:active:bg-slate-700 text-zinc-800 dark:text-zinc-200 cursor-pointer shadow-sm active:scale-95 transition-all select-none"
+  1191	                        >
+  1192	                          0
+  1193	                        </button>
+  1194	
+  1195	                        {/* Safe Unlocking Button */}
+  1196	                        <button
+  1197	                          type="button"
+  1198	                          onClick={() => {
+  1199	                            if (pinInput.length > 0) {
+  1200	                              if (pinInput === '2016') {
+  1201	                                setPinStatus('success');
+  1202	                                playKeySound('success');
+  1203	                                setTimeout(() => {
+  1204	                                  setIsAdminRevealed(true);
+  1205	                                  setPinInput('');
+  1206	                                  setPinStatus('idle');
+  1207	                                }, 1400);
+  1208	                              } else {
+  1209	                                setPinStatus('error');
+  1210	                                playKeySound('error');
+  1211	                                setTimeout(() => {
+  1212	                                  setPinInput('');
+  1213	                                  setPinStatus('idle');
+  1214	                                }, 1400);
+  1215	                              }
+  1216	                            } else {
+  1217	                              playKeySound('error');
+  1218	                            }
+  1219	                          }}
+  1220	                          className="h-12 flex items-center justify-center text-xs font-black font-mono rounded-xl bg-emerald-500/15 border border-emerald-500/25 hover:bg-emerald-500/25 active:scale-95 text-emerald-500 cursor-pointer shadow-sm transition-all select-none"
+  1221	                          title="Giriş Yap"
+  1222	                        >
+  1223	                          ✔
+  1224	                        </button>
+  1225	                      </div>
+  1226	
+  1227	                      {/* Footer micro label */}
+  1228	                      <p className="mt-5 text-[11px] text-zinc-500 dark:text-zinc-400 font-mono text-center leading-relaxed max-w-[260px]">
+  1229	                        Klavyenizdeki sayısal tuşlarla veya ekrandaki butonlara basarak şifreyi girip kasayı açabilirsiniz.
+  1230	                      </p>
+  1231	                    </div>
+  1232	                  )}
+  1233	                </div>
+  1234	              )
+  1235	            )}
+  1236	            </div>
+  1237	          </div>
+  1238	

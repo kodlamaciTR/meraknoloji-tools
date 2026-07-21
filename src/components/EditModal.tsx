@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { X, Edit3, Save, AlertTriangle } from 'lucide-react';
-import { WebApp, CATEGORIES, Category } from '../types';
+import { WebApp, CATEGORIES, Category, AppBadge } from '../types';
 
 interface EditModalProps {
   app: WebApp;
@@ -14,12 +14,20 @@ interface EditModalProps {
 }
 
 const QUICK_EMOJIS = ['📅', '🛠️', '🎨', '🎬', '🎵', '🤖', '🎮', '📁', '🚀', '⚙️', '📈', '🧩', '🩺', '🛒'];
+const BADGE_OPTIONS: { id: AppBadge; label: string }[] = [
+  { id: 'ai', label: 'AI Destekli' },
+  { id: 'api', label: 'API Gerekli' },
+  { id: 'beta', label: 'Beta' },
+  { id: 'new', label: 'Yeni' },
+  { id: 'popular', label: 'Popüler' },
+];
 
 export default function EditModal({ app, onClose, onSave }: EditModalProps) {
   const [name, setName] = useState(app.name);
   const [description, setDescription] = useState(app.description);
   const [category, setCategory] = useState<Category>(app.category as Category);
   const [icon, setIcon] = useState(app.icon);
+  const [badges, setBadges] = useState<AppBadge[]>(app.badges || []);
   const [customEmoji, setCustomEmoji] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -53,6 +61,7 @@ export default function EditModal({ app, onClose, onSave }: EditModalProps) {
       description: description.trim(),
       category: category,
       icon: icon,
+      badges: badges,
     });
   };
 
@@ -124,6 +133,30 @@ export default function EditModal({ app, onClose, onSave }: EditModalProps) {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">Rozetler (Opsiyonel)</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {BADGE_OPTIONS.map((badge) => (
+                <button
+                  key={badge.id}
+                  type="button"
+                  onClick={() => {
+                    setBadges(prev => 
+                      prev.includes(badge.id) ? prev.filter(x => x !== badge.id) : [...prev, badge.id]
+                    )
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                    badges.includes(badge.id) 
+                      ? 'border-blue-500 bg-blue-500/10 text-blue-400' 
+                      : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  {badge.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>

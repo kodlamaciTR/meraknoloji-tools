@@ -65,6 +65,7 @@ export default function App() {
 
   // Active View Tab config: 'all' | 'games' | 'favorites' | 'settings'
   const [activeTab, setActiveTab] = useState<'all' | 'games' | 'favorites' | 'settings'>('all');
+  const [settingsTab, setSettingsTab] = useState<'genel' | 'gorunum' | 'gelistirici' | 'hakkinda'>('genel');
 
   // Search & Filtering States
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,17 +85,28 @@ export default function App() {
   const [savedSettings, setSavedSettings] = useState<AppSettings>(() => {
     try {
       const raw = localStorage.getItem('webapp_platform_settings');
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (!parsed.aiSettings) {
+           parsed.aiSettings = { provider: 'gemini', geminiKey: parsed.geminiApiKey || '', groqKey: '' };
+        }
+        return parsed;
+      }
     } catch {}
     return {
       theme: 'system',
-      geminiApiKey: ''
+      geminiApiKey: '',
+      aiSettings: {
+        provider: 'gemini',
+        geminiKey: '',
+        groqKey: ''
+      }
     };
   });
 
-  // Gemini Connection Tester State
-  const [isTestingGemini, setIsTestingGemini] = useState(false);
-  const [geminiTestResult, setGeminiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  // AI Connection Tester State
+  const [isTestingAI, setIsTestingAI] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Backup, Restore States
   const [isExporting, setIsExporting] = useState(false);
@@ -146,6 +158,37 @@ export default function App() {
   const [pinInput, setPinInput] = useState('');
   const [pinStatus, setPinStatus] = useState<'idle' | 'error' | 'success'>('idle');
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isSystemAdminUIEnabled, setIsSystemAdminUIEnabled] = useState(() => window.location.hash === '#admin');
+
+  // URL Hash tabanlı yönetici sistemi
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash === '#admin') {
+        setIsSystemAdminUIEnabled(true);
+        setIsAdminArmed(true);
+        setActiveTab("settings");
+      } else if (hash === '#adminexit') {
+        setIsSystemAdminUIEnabled(false);
+        setIsAdminArmed(false);
+        setIsAdminRevealed(false);
+        setShowComboToast(false);
+        setPinInput('');
+        setPinStatus('idle');
+        setAdminCountdown(null);
+        localStorage.setItem('webapp_platform_admin_unlocked', 'false');
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      } else {
+        setIsSystemAdminUIEnabled(false);
+      }
+    };
+    
+    // Check on mount (in case URL is already #adminexit)
+    handleHashChange();
+    
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Retro çelik kasa tuş tıklama sesleri harmonik sentezleyici
   const playKeySound = (type: 'number' | 'clear' | 'success' | 'error') => {
@@ -283,74 +326,6 @@ export default function App() {
     return () => clearTimeout(interval);
   }, [adminCountdown]);
 
-  // Shortcut to toggle admin mode visual visibility (Ctrl + Alt + N) only when armed
-  useEffect(() => {
-    const handleToggleEvent = (e: KeyboardEvent) => {
-      // Support standard N key, character code, keydown, Turkish layouts, and alternate combinations
-      const isNKey = 
-        e.key?.toLowerCase() === 'n' || 
-        e.code?.toLowerCase() === 'keyn' || 
-        e.keyCode === 78 || 
-        e.which === 78 ||
-        e.key === 'n' || 
-        e.key === 'N' ||
-        e.key === 'ı' || // Some Turkish layout configurations map Alt+N or Ctrl+Alt+N to 'ı' or 'I'
-        e.key === 'I' ||
-        e.key === 'ñ';
-      
-      const hasAltGr = e.getModifierState && e.getModifierState('AltGraph');
-      const hasModifiers = (e.ctrlKey && e.altKey) || e.metaKey || hasAltGr || (e.ctrlKey && e.shiftKey) || (e.altKey && e.shiftKey);
-      
-      if (hasModifiers && isNKey) {
-        if (!isAdminArmed) {
-          // If not armed, we do nothing
-          return;
-        }
-
-        e.preventDefault();
-        setButtonPressState('basıldı');
-        
-        // Toggle the visual panels safely (only lock/hide from keyboard shortcut is allowed, unlocking requires PIN pad '2016' entry)
-        if (isAdminRevealed) {
-          setIsAdminRevealed(false);
-          // Auto reset press animation feedback after 0.4 seconds
-          setTimeout(() => {
-            setButtonPressState('serbest');
-          }, 400);
-        } else {
-          // Play mistake noise and notify that pin keyboard must be utilized
-          playKeySound('error');
-          setTimeout(() => {
-            setButtonPressState('serbest');
-          }, 400);
-        }
-      }
-    };
-
-    const handleReleaseEvent = (e: KeyboardEvent) => {
-      const isNKey = 
-        e.key?.toLowerCase() === 'n' || 
-        e.code?.toLowerCase() === 'keyn' || 
-        e.keyCode === 78 || 
-        e.which === 78;
-      if (isNKey || !e.ctrlKey || !e.altKey) {
-        setButtonPressState('serbest');
-      }
-    };
-
-    // Listen to BOTH window and document to capture events when focus is anywhere inside the app page
-    window.addEventListener('keydown', handleToggleEvent, { capture: true });
-    window.addEventListener('keyup', handleReleaseEvent, { capture: true });
-    document.addEventListener('keydown', handleToggleEvent, { capture: true });
-    document.addEventListener('keyup', handleReleaseEvent, { capture: true });
-    
-    return () => {
-      window.removeEventListener('keydown', handleToggleEvent, { capture: true });
-      window.removeEventListener('keyup', handleReleaseEvent, { capture: true });
-      document.removeEventListener('keydown', handleToggleEvent, { capture: true });
-      document.removeEventListener('keyup', handleReleaseEvent, { capture: true });
-    };
-  }, [isAdminArmed]);
 
   // 1. Register Service Worker on Mount
   useEffect(() => {
@@ -584,37 +559,45 @@ export default function App() {
     }
   };
 
-  // Gemini API Sandbox Key verification tester
-  const handleTestGeminiKey = () => {
-    setIsTestingGemini(true);
-    setGeminiTestResult(null);
+  // AI API Sandbox Key verification tester
+  const handleTestAIKey = () => {
+    setIsTestingAI(true);
+    setAiTestResult(null);
 
     setTimeout(() => {
-      setIsTestingGemini(false);
-      const key = savedSettings.geminiApiKey.trim();
-      
+      setIsTestingAI(false);
+      const provider = savedSettings.aiSettings?.provider || 'gemini';
+      const key = provider === 'gemini' 
+        ? (savedSettings.aiSettings?.geminiKey || savedSettings.geminiApiKey).trim() 
+        : (savedSettings.aiSettings?.groqKey || '').trim();
+            
       if (!key) {
-        setGeminiTestResult({
+        setAiTestResult({
           success: false,
-          message: 'Bağlantı Başarısız: Gemini API anahtarı boş olamaz.'
+          message: `Bağlantı Başarısız: ${provider === 'gemini' ? 'Gemini' : 'Groq'} API anahtarı boş olamaz.`
         });
-      } else if (!key.startsWith('AIzaSy') && key.length < 20) {
-        setGeminiTestResult({
+      } else if (provider === 'gemini' && !key.startsWith('AIzaSy') && key.length < 20) {
+        setAiTestResult({
           success: false,
           message: 'Bağlantı Başarısız: API anahtarı "AIzaSy" ile başlamalı veya en az 20 karakter uzunluğunda olmalıdır.'
         });
+      } else if (provider === 'groq' && !key.startsWith('gsk_') && key.length < 20) {
+        setAiTestResult({
+          success: false,
+          message: 'Bağlantı Başarısız: Groq API anahtarı "gsk_" ile başlamalıdır.'
+        });
       } else if (key.length < 20) {
-        setGeminiTestResult({
+        setAiTestResult({
           success: false,
           message: 'Bağlantı Başarısız: API anahtarı çok kısa görünüyor.'
         });
       } else {
-        const isAlternativeFormat = !key.startsWith('AIzaSy');
-        setGeminiTestResult({
+        const isAlternativeFormat = provider === 'gemini' && !key.startsWith('AIzaSy');
+        setAiTestResult({
           success: true,
           message: isAlternativeFormat
             ? 'Sanal Bağlantı Başarılı! Alternatif anahtar formatı başarıyla algılandı ve kabul edildi.'
-            : 'Sanal Bağlantı Başarılı! Gemini API anahtar formatı doğrulandı ve entegrasyon altyapısı hazır hale getirildi.'
+            : `Sanal Bağlantı Başarılı! ${provider === 'gemini' ? 'Gemini' : 'Groq'} API anahtar formatı doğrulandı ve entegrasyon altyapısı hazır hale getirildi.`
         });
       }
     }, 1200);
@@ -794,7 +777,7 @@ export default function App() {
               className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
                 activeTab === 'settings'
                   ? 'bg-white dark:bg-slate-800 text-zinc-900 dark:text-white shadow-sm'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
               }`}
             >
               <SettingsIcon className="h-4 w-4" />
@@ -805,181 +788,120 @@ export default function App() {
 
         {/* Dynamic Inner layouts depending on tab */}
         {activeTab === 'settings' ? (
-          
+            
           /* ================= SETTINGS PANE ================= */
-          <div id="settings-view" className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="md:col-span-1">
-              <h2 className="font-display text-xl font-bold tracking-tight text-zinc-900 dark:text-white">Platform Ayarları</h2>
-              <p className="text-sm text-zinc-550 dark:text-zinc-400 mt-1">Platform görünümünüzü ve Gelecekteki Yapay Zeka (Gemini API) bağlantılarınızı buradan ayarlayın.</p>
+          <div id="settings-view" className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="md:col-span-1 flex flex-col gap-2 border-r border-zinc-200 dark:border-slate-800/80 pr-6">
+              <h2 className="font-display text-xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4">Platform Ayarları</h2>
+              
+              <button 
+                onClick={() => setSettingsTab('genel')} 
+                className={`text-left px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${settingsTab === 'genel' ? 'bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-slate-900/50'}`}
+              >
+                Genel
+              </button>
+              <button 
+                onClick={() => setSettingsTab('gorunum')} 
+                className={`text-left px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${settingsTab === 'gorunum' ? 'bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-slate-900/50'}`}
+              >
+                Görünüm
+              </button>
+              <button 
+                onClick={() => setSettingsTab('gelistirici')} 
+                className={`text-left px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${settingsTab === 'gelistirici' ? 'bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-slate-900/50'}`}
+              >
+                Geliştirici Modu
+              </button>
+              <button 
+                onClick={() => setSettingsTab('hakkinda')} 
+                className={`text-left px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${settingsTab === 'hakkinda' ? 'bg-zinc-100 dark:bg-slate-800 text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-slate-900/50'}`}
+              >
+                Hakkında
+              </button>
             </div>
 
-            <div className="md:col-span-2 flex flex-col gap-6">
-              {/* Theme Settings Card */}
-              <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm">
-                <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2 mb-4">
-                  <SlidersHorizontal className="h-5 w-5 text-blue-500" />
-                  Tema Tercihleri
-                </h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">Platformun görünüm temasını zevkinize göre özelleştirin.</p>
-                
-                <div className="grid grid-cols-3 gap-3">
-                  {(['light', 'dark', 'system'] as const).map((t) => {
-                    const label = t === 'light' ? 'Açık Tema' : t === 'dark' ? 'Koyu Tema' : 'Sistem Teması';
-                    const IconComp = t === 'light' ? Sun : t === 'dark' ? Moon : Monitor;
-                    return (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => handleSaveSettings({ theme: t })}
-                        className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all cursor-pointer ${
-                          savedSettings.theme === t
-                            ? 'bg-blue-600/5 border-blue-500 text-blue-600 dark:text-blue-400 font-semibold'
-                            : 'bg-zinc-50 dark:bg-slate-900/40 border-zinc-200 dark:border-slate-800/80 text-zinc-650 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-slate-800/60'
-                        }`}
-                      >
-                        <IconComp className="h-5.5 w-5.5 mb-2" />
-                        <span className="text-xs">{label}</span>
-                      </button>
-                    );
-                  })}
+            <div className="md:col-span-3 flex flex-col gap-6">
+              {settingsTab === 'genel' && (
+                <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm">
+                  <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2 mb-4">
+                    <SettingsIcon className="h-5 w-5 text-zinc-500" />
+                    Genel Ayarlar
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Genel platform ayarları yakında eklenecektir.</p>
                 </div>
+              )}
 
-                {/* Advanced Lock Toggle Footer */}
-                <div className="border-t border-zinc-200 dark:border-slate-800/80 mt-5 pt-4 flex flex-col gap-3">
-                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {/* Status Indicator Light */}
-                      <span className="flex h-5 w-5 items-center justify-center select-none">
-                        <span className={`relative flex h-2.5 w-2.5 rounded-full transition-all duration-300 ${
-                          adminCountdown !== null
-                            ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24]'
-                            : isAdminArmed 
-                              ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' 
-                              : 'bg-rose-500 shadow-[0_0_8px_#ef4444]'
-                        }`}>
-                          {(isAdminArmed || adminCountdown !== null) && (
-                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                              adminCountdown !== null ? 'bg-amber-400' : 'bg-emerald-400'
-                            }`}></span>
-                          )}
-                        </span>
-                      </span>
-                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 font-mono">
-                        {adminCountdown !== null ? (
-                          <>Güvenlik Eşleştirmesi: <span className="text-amber-500 font-bold">{adminCountdown} sn kaldı</span></>
-                        ) : (
-                          <>Yönetici Erişimi: {isAdminArmed ? 'AÇIK (Yeşil)' : 'KİLİTLİ (Kırmızı)'}</>
-                        )}
-                      </span>
-                      {isAdminArmed && showComboToast && (
-                        <span className="text-[11px] font-bold text-amber-500 dark:text-amber-400 animate-pulse font-mono ml-1.5 select-none shrink-0 font-bold uppercase">
-                          ← KOMBİNASYONU GİRİNİZ!
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {/* Tactile Key Press Indicator */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (isAdminArmed) {
-                            setIsAdminRevealed((prev) => !prev);
-                            setButtonPressState('basıldı');
-                            setTimeout(() => setButtonPressState('serbest'), 350);
-                          }
-                        }}
-                        disabled={!isAdminArmed}
-                        className={`text-[10px] font-mono px-2.5 py-1 rounded-lg transition-all select-none ${
-                          !isAdminArmed 
-                            ? 'bg-zinc-100 dark:bg-slate-950 border border-zinc-200 dark:border-slate-800 text-zinc-450 cursor-not-allowed opacity-50'
-                            : buttonPressState === 'basıldı'
-                              ? 'bg-amber-500/20 border border-amber-500/40 text-amber-500 scale-95 font-bold cursor-pointer'
-                              : 'bg-zinc-200/60 dark:bg-slate-900 border border-zinc-300 dark:border-slate-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-slate-800 cursor-pointer font-bold hover:scale-105 active:scale-95'
-                        }`}
-                        title={isAdminArmed ? "Gizli yönetici görünümünü aç/kapat (Kısayol: Ctrl + Alt + N)" : "Yönetici ayarları kilitli"}
-                      >
-                        Tuş: {buttonPressState === 'basıldı' ? 'BASILDI ⬤' : 'SERBEST ◯'}
-                      </button>
-
-                      {adminCountdown !== null ? (
+              {settingsTab === 'gorunum' && (
+                <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm">
+                  <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2 mb-4">
+                    <SlidersHorizontal className="h-5 w-5 text-blue-500" />
+                    Tema Tercihleri
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">Platformun görünüm temasını zevkinize göre özelleştirin.</p>
+                  
+                  <div className="grid grid-cols-3 gap-3">
+                    {(['light', 'dark', 'system'] as const).map((t) => {
+                      const label = t === 'light' ? 'Açık Tema' : t === 'dark' ? 'Koyu Tema' : 'Sistem Teması';
+                      const IconComp = t === 'light' ? Sun : t === 'dark' ? Moon : Monitor;
+                      return (
                         <button
+                          key={t}
                           type="button"
-                          onClick={() => setAdminCountdown(null)}
-                          className="flex items-center gap-1.5 rounded-xl border border-rose-200 dark:border-rose-950 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-950/40 px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-450 transition-all active:scale-95 cursor-pointer shadow-sm select-none"
+                          onClick={() => handleSaveSettings({ theme: t })}
+                          className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all cursor-pointer ${
+                            savedSettings.theme === t
+                              ? 'bg-blue-600/5 border-blue-500 text-blue-600 dark:text-blue-400 font-semibold'
+                              : 'bg-zinc-50 dark:bg-slate-900/40 border-zinc-200 dark:border-slate-800/80 text-zinc-650 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-slate-800/60'
+                          }`}
                         >
-                          <RefreshCw className="h-3.5 w-3.5 animate-spin text-rose-500" />
-                          <span>İptal Et</span>
+                          <IconComp className="h-5.5 w-5.5 mb-2" />
+                          <span className="text-xs">{label}</span>
                         </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onMouseDown={() => setButtonPressState('basıldı')}
-                          onMouseUp={() => setButtonPressState('serbest')}
-                          onMouseLeave={() => setButtonPressState('serbest')}
-                          onTouchStart={() => setButtonPressState('basıldı')}
-                          onTouchEnd={() => setButtonPressState('serbest')}
-                          onClick={() => {
-                            if (isAdminArmed) {
-                              setIsAdminArmed(false);
-                              setIsAdminRevealed(false);
-                              setShowComboToast(false);
-                              localStorage.setItem('webapp_platform_admin_unlocked', 'false');
-                            } else {
-                              setAdminCountdown(5);
-                            }
-                          }}
-                          className="flex items-center gap-1.5 rounded-xl border border-zinc-200 dark:border-slate-800 bg-zinc-50 dark:bg-slate-950 hover:bg-zinc-100 dark:hover:bg-slate-900 px-3.5 py-2 text-xs font-bold text-zinc-700 dark:text-slate-300 transition-all active:scale-95 cursor-pointer shadow-sm select-none"
-                          title="Yönetici Ayarları Güvenlik Kilidi"
-                        >
-                          {isAdminArmed ? (
-                            <>
-                              <Unlock className="h-3.5 w-3.5 text-emerald-500" />
-                              <span>Erişimi Kilitle</span>
-                            </>
-                          ) : (
-                            <>
-                              <Lock className="h-3.5 w-3.5 text-rose-500" />
-                              <span>Erişimi Aç</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
+                      );
+                    })}
                   </div>
-
-                  {/* Modern Progress Loading loader */}
-                  {adminCountdown !== null && (
-                    <div className="w-full bg-zinc-100 dark:bg-slate-950 rounded-full h-1 mt-1 overflow-hidden border border-zinc-200/50 dark:border-slate-900/80 animate-fade-in">
-                      <div 
-                        className="bg-gradient-to-r from-amber-400 to-amber-500 h-full rounded-full transition-all duration-1000 ease-linear shadow-[0_0_8px_#f59e0b]" 
-                        style={{ width: `${((5 - adminCountdown) / 5) * 100}%` }}
-                      />
-                    </div>
-                  )}
                 </div>
-              </div>
+              )}
 
-              {isAdminArmed && isAdminRevealed ? (
-                <>
-                  {/* AI Gemini Integration Sandbox */}
-                  <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm animate-fade-in">
-                    <div className="flex items-center gap-2 justify-between mb-2">
-                      <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2">
-                        <Zap className="h-5 w-5 text-amber-500 fill-amber-500/10" />
-                        Yapay Zeka Ayarları (Gemini API)
-                      </h3>
-                      <span className="text-[10px] bg-amber-500/10 text-amber-500 dark:text-amber-400 font-mono px-2 py-0.5 rounded-md border border-amber-500/20">Altyapı Sandbox</span>
+              {settingsTab === 'gelistirici' && (
+                <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm animate-fade-in">
+                  <div className="flex items-center gap-2 justify-between mb-2">
+                    <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-amber-500 fill-amber-500/10" />
+                      Ortak Yapay Zeka (AI) Ayarları
+                    </h3>
+                    <span className="text-[10px] bg-amber-500/10 text-amber-500 dark:text-amber-400 font-mono px-2 py-0.5 rounded-md border border-amber-500/20">Altyapı Sandbox</span>
+                  </div>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">Gelecekte platformunuza yüklenecek olan yapay zeka entegrasyonları için genel AI altyapısını kurun.</p>
+                     
+                  {/* Form Inputs */}
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider font-mono">Varsayılan Sağlayıcı (Provider)</label>
+                      <select 
+                        value={savedSettings.aiSettings?.provider || 'gemini'}
+                        onChange={(e) => {
+                          const newProvider = e.target.value as 'gemini' | 'groq';
+                          handleSaveSettings({
+                            aiSettings: {
+                              ...(savedSettings.aiSettings || { geminiKey: '', groqKey: '' }),
+                              provider: newProvider
+                            }
+                          });
+                        }}
+                        className="mt-1.5 w-full rounded-xl border border-zinc-200 dark:border-slate-800 bg-zinc-50 dark:bg-slate-950 px-4 py-2.5 text-sm py-2.5 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:border-blue-500 transition-all font-mono"
+                      >
+                        <option value="gemini">Google Gemini</option>
+                        <option value="groq">Groq</option>
+                      </select>
                     </div>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">Gelecekte platformunuza yüklenecek olan yapay zeka entegrasyonları için Gemini API altyapısını kurun.</p>
-                    
-                    {/* Form Inputs */}
-                    <div className="flex flex-col gap-4">
-                      <div>
+
+                    {(!savedSettings.aiSettings?.provider || savedSettings.aiSettings?.provider === 'gemini') && (
+                      <div className="animate-fade-in">
                         <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider font-mono">Gemini API Anahtarı</label>
                         <input
                           type="password"
-                          value={savedSettings.geminiApiKey}
+                          value={savedSettings.aiSettings?.geminiKey || savedSettings.geminiApiKey || ''}
                           onChange={(e) => {
                             import('./utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
                               if (isMaliciousInput(e.target.value)) {
@@ -987,57 +909,213 @@ export default function App() {
                                 showToast("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!", "error");
                                 return;
                               }
-                              handleSaveSettings({ geminiApiKey: e.target.value });
+                              handleSaveSettings({
+                                geminiApiKey: e.target.value, // Keep for fallback
+                                aiSettings: {
+                                  ...(savedSettings.aiSettings || { provider: 'gemini', groqKey: '' }),
+                                  geminiKey: e.target.value
+                                }
+                              });
                             });
                           }}
                           placeholder="AIzaSy..."
                           className="mt-1.5 w-full rounded-xl border border-zinc-200 dark:border-slate-800 bg-zinc-50 dark:bg-slate-950 px-4 py-2.5 text-sm py-2.5 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-blue-500 transition-all font-mono"
                         />
                       </div>
+                    )}
 
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          disabled={isTestingGemini}
-                          onClick={handleTestGeminiKey}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-slate-800 bg-zinc-50 dark:bg-slate-950 px-4 py-2.5 text-xs font-mono font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-slate-900 focus:outline-none focus:ring-1 active:scale-98 cursor-pointer"
-                        >
-                          {isTestingGemini ? (
-                            <>
-                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                              Bağlantı Test Ediliyor...
-                            </>
-                          ) : (
-                            <>
-                              <Cpu className="h-3.5 w-3.5 text-blue-500" />
-                              Bağlantıyı Test Et
-                            </>
-                          )}
-                        </button>
+                    {savedSettings.aiSettings?.provider === 'groq' && (
+                      <div className="animate-fade-in">
+                        <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider font-mono">Groq API Anahtarı</label>
+                        <input
+                          type="password"
+                          value={savedSettings.aiSettings?.groqKey || ''}
+                          onChange={(e) => {
+                            import('./utils/security').then(({ isMaliciousInput, logSecurityIncident }) => {
+                              if (isMaliciousInput(e.target.value)) {
+                                logSecurityIncident('XSS', e.target.value);
+                                showToast("Güvenlik Hatası: Zararlı giriş tespit edildi ve engellendi!", "error");
+                                return;
+                              }
+                              handleSaveSettings({
+                                aiSettings: {
+                                  ...(savedSettings.aiSettings || { provider: 'groq', geminiKey: savedSettings.geminiApiKey }),
+                                  groqKey: e.target.value
+                                }
+                              });
+                            });
+                          }}
+                          placeholder="gsk_..."
+                          className="mt-1.5 w-full rounded-xl border border-zinc-200 dark:border-slate-800 bg-zinc-50 dark:bg-slate-950 px-4 py-2.5 text-sm py-2.5 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-blue-500 transition-all font-mono"
+                        />
                       </div>
+                    )}
 
-                      {geminiTestResult && (
-                        <div className={`flex items-start gap-2.5 rounded-xl border p-4 text-xs font-mono leading-relaxed ${
-                          geminiTestResult.success 
-                            ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
-                            : 'bg-red-500/5 border-red-500/10 text-red-600 dark:text-red-400'
-                        }`}>
-                          <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                          <span>{geminiTestResult.message}</span>
-                        </div>
-                      )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={isTestingAI}
+                        onClick={handleTestAIKey}
+                        className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-slate-800 bg-zinc-50 dark:bg-slate-950 px-4 py-2.5 text-xs font-mono font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-slate-900 focus:outline-none focus:ring-1 active:scale-98 cursor-pointer"
+                      >
+                        {isTestingAI ? (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            Bağlantı Test Ediliyor...
+                          </>
+                        ) : (
+                          <>
+                            <Cpu className="h-3.5 w-3.5 text-blue-500" />
+                            Bağlantıyı Test Et
+                          </>
+                        )}
+                      </button>
                     </div>
+
+                    {aiTestResult && (
+                      <div className={`flex items-start gap-2.5 rounded-xl border p-4 text-xs font-mono leading-relaxed ${
+                        aiTestResult.success
+                          ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : "bg-red-500/5 border-red-500/10 text-red-600 dark:text-red-400"
+                      }`}>
+                        <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>{aiTestResult.message}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'hakkinda' && (
+                <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm">
+                  <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2 mb-4">
+                    <Info className="h-5 w-5 text-indigo-500" />
+                    Hakkında
+                  </h3>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">MN Nexus Platform <span className="font-mono bg-zinc-100 dark:bg-slate-800 px-2 py-0.5 rounded ml-2">v3.0.0</span></p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Bu sistem gelişmiş güvenlik algoritmaları, kapsayıcı yapı ve yönetim paneli özellikleri ile donatılmıştır.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Advanced Lock Toggle Footer */}
+            {isSystemAdminUIEnabled && (
+              <div className="md:col-span-4 border-t border-zinc-200 dark:border-slate-800/80 mt-5 pt-4 flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {/* Status Indicator Light */}
+                    <span className="flex h-5 w-5 items-center justify-center select-none">
+                      <span className={`relative flex h-2.5 w-2.5 rounded-full transition-all duration-300 ${
+                        adminCountdown !== null
+                          ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24]'
+                          : isAdminArmed 
+                            ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' 
+                            : 'bg-rose-500 shadow-[0_0_8px_#ef4444]'
+                      }`}>
+                        {(isAdminArmed || adminCountdown !== null) && (
+                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                            adminCountdown !== null ? 'bg-amber-400' : 'bg-emerald-400'
+                          }`}></span>
+                        )}
+                      </span>
+                    </span>
+                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 font-mono">
+                      {adminCountdown !== null ? (
+                        <>Güvenlik Eşleştirmesi: <span className="text-amber-500 font-bold">{adminCountdown} sn kaldı</span></>
+                      ) : (
+                        <>Yönetici Erişimi: {isAdminArmed ? 'AÇIK (Yeşil)' : 'KİLİTLİ (Kırmızı)'}</>
+                      )}
+                    </span>
+                    {isAdminArmed && showComboToast && (
+                      <span className="text-[11px] font-bold text-amber-500 dark:text-amber-400 animate-pulse font-mono ml-1.5 select-none shrink-0 uppercase font-bold">
+                        ← KOMBİNASYONU GİRİNİZ!
+                      </span>
+                    )}
                   </div>
 
-                  {/* Data Backup Interface */}
-                  <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm animate-fade-in max-w-2xl mx-auto w-full">
-                    <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2 mb-2 justify-center">
-                      <Database className="h-5 w-5 text-indigo-500" />
-                      Veri Yedekleme ve Geri Yükleme
-                    </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-6 text-center">
-                      Platformdaki tüm yüklü uygulama kartlarını ve sanal dosyaları tek tıklamayla JSON yedek dosyası olarak bilgisayarınıza yedekleyin veya geri yükleyin.
-                    </p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* buttonPressState Indicator Badge */}
+                    <div className="rounded-lg border border-zinc-200 dark:border-slate-800/85 bg-zinc-50 dark:bg-slate-900/60 px-3 py-1.5 flex items-center gap-2 font-mono text-[11px] font-bold text-zinc-650 dark:text-zinc-300 select-none">
+                      <span>Tuş: {buttonPressState === 'serbest' ? 'SERBEST' : 'MEŞGUL'}</span>
+                      <span className={`h-1.5 w-1.5 rounded-full ${buttonPressState === 'serbest' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={adminCountdown !== null}
+                      onClick={() => {
+                        if (isAdminArmed) {
+                          setIsAdminArmed(false);
+                          setIsAdminRevealed(false);
+                          localStorage.setItem('webapp_platform_admin_unlocked', 'false');
+                        } else {
+                          setAdminCountdown(5);
+                          setButtonPressState('basıldı');
+                          playKeySound('number');
+                          setTimeout(() => {
+                            setButtonPressState('serbest');
+                          }, 5000);
+                        }
+                      }}
+                      className={`flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-bold transition-all select-none cursor-pointer active:scale-95 ${
+                        adminCountdown !== null
+                          ? 'bg-zinc-100 dark:bg-slate-850 border-zinc-200 dark:border-slate-800 text-zinc-400 dark:text-zinc-550'
+                          : isAdminArmed
+                            ? 'bg-rose-500/15 hover:bg-rose-500/25 border-rose-500/25 text-rose-500'
+                            : 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/25 text-emerald-500'
+                      }`}
+                    >
+                      {isAdminArmed ? (
+                        <>
+                          <Lock className="h-3.5 w-3.5" />
+                          Erişimi Kilitle
+                        </>
+                      ) : (
+                        <>
+                          <Unlock className="h-3.5 w-3.5" />
+                          Erişimi Aç
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Orange-striped progress loading loader */}
+                {adminCountdown !== null && (
+                  <div className="w-full bg-zinc-100 dark:bg-slate-950 rounded-full h-1.5 mt-1 overflow-hidden border border-zinc-200/50 dark:border-slate-900/80 animate-fade-in">
+                    <div 
+                      className="bg-gradient-to-r from-amber-400 to-amber-500 h-full rounded-full transition-all duration-1000 ease-linear shadow-[0_0_8px_#f59e0b]" 
+                      style={{ width: `${((5 - adminCountdown) / 5) * 100}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* System Admin Panel - Only visible when URL is #admin */}
+            {isSystemAdminUIEnabled && (
+              <div className="md:col-span-4 mt-12 mb-8 animate-fade-in border-t border-zinc-200 dark:border-slate-800 pt-8">
+                <div className="flex flex-col items-center mb-8">
+                  <h2 className="font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
+                    <ShieldAlert className="h-6 w-6 text-rose-500" />
+                    Sistem Yönetim Paneli
+                  </h2>
+                  <p className="text-sm text-zinc-550 dark:text-zinc-400 mt-2 text-center max-w-lg">
+                    Bu alan sadece platform yöneticileri içindir. Lütfen yetkili değilseniz bu alanı terk edin.
+                  </p>
+                </div>
+
+                {isAdminArmed && isAdminRevealed ? (
+                  <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto">
+                    {/* Data Backup Interface */}
+                    <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-6 shadow-sm animate-fade-in w-full">
+                      <h3 className="font-display font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2 mb-2 justify-center">
+                        <Database className="h-5 w-5 text-indigo-500" />
+                        Veri Yedekleme ve Geri Yükleme
+                      </h3>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-6 text-center">
+                        Platformdaki tüm yüklü uygulama kartlarını ve sanal dosyaları tek tıklamayla JSON yedek dosyası olarak bilgisayarınıza yedekleyin veya geri yükleyin.
+                      </p>
 
                     <div className="rounded-xl border border-zinc-150 dark:border-slate-800/60 bg-zinc-50/50 dark:bg-slate-950/40 p-5 flex flex-col items-center">
                       <div className="w-full flex flex-col sm:flex-row gap-3 justify-center">
@@ -1114,7 +1192,7 @@ export default function App() {
                       )}
                     </div>
                   </div>
-                </>
+                </div>
               ) : (
                 <div className="rounded-2xl border border-zinc-200 dark:border-slate-800 bg-zinc-50/50 dark:bg-slate-950/40 p-6 md:p-8 flex flex-col items-center justify-center select-none shadow-inner max-w-md mx-auto w-full">
                   {!isAdminArmed ? (
@@ -1248,9 +1326,10 @@ export default function App() {
                     </div>
                   )}
                 </div>
-              )}
+                )}
+              </div>
+            )}
             </div>
-          </div>
 
         ) : (
 
